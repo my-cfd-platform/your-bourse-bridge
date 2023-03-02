@@ -49,7 +49,7 @@ impl FixMessageSerializer {
 
     pub fn serialize_instrument_subscribe(
         &self,
-        instruments: &Vec<String>,
+        instrument: &String,
         sender_comp_id: &str,
         target_comp_id: &str,
     ) -> FixMessageBuilder {
@@ -73,9 +73,7 @@ impl FixMessageSerializer {
         fix_builder.with_value(269, "0");
         fix_builder.with_value(269, "1");
         fix_builder.with_value(146, "1");
-        for instrument in instruments {
-            fix_builder.with_value(55, instrument)
-        }
+        fix_builder.with_value(55, instrument);
 
         return fix_builder;
     }

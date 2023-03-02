@@ -30,12 +30,14 @@ impl FixMessageHandler {
             .settings
             .instruments_mapping
             .iter()
-            .map(|x| x.0.clone())
+            .map(|x| x.1.clone())
             .collect::<Vec<String>>();
-        let subscribe_message = FixMessage {
-            mesage_type: FixMessageType::SubscribeToInstrument(instruments_to_subsribe),
-        };
-        connection.send(subscribe_message).await;
+        for instrument in instruments_to_subsribe {
+            let subscribe_message = FixMessage {
+                mesage_type: FixMessageType::SubscribeToInstrument(instrument),
+            };
+            connection.send(subscribe_message).await;
+        }
     }
     async fn send_logon(
         &self,

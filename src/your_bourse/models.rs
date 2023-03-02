@@ -14,7 +14,7 @@ pub struct FixMessage {
 }
 
 pub enum FixMessageType{
-    SubscribeToInstrument(Vec<String>),
+    SubscribeToInstrument(String),
     Logon,
     Payload(FixPayload),
     Pong,
