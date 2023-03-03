@@ -51,12 +51,29 @@ impl FixMessageHandler {
 
     async fn handle_price_tick_message(&self, fix_message: FixPayload) {
         if let FixPayload::MarketData(message) = fix_message {
+            // there shall be always no_md_entries in the message
+            // skip message if it's not exist
+            let no_md_entries = message.get_value_string("268");
+            if no_md_entries == None{
+                println!("Broken message? {}", message.to_string());
+                return;
+            }
+            let no_md_entries = no_md_entries.unwrap().parse::<u32>().unwrap();//.collect::<u32>().unwrap();
+            
+            // not sure why buy sometimes there are no prices available in the message,
+            // so we skip the message
+            if no_md_entries < 2{
+                println!("Broken message? {}", message.to_string());
+                return;
+            }
             let prices = message
                 .get_values_string("270")
                 .iter()
                 .map(|x| x.parse::<f64>().unwrap())
                 .collect::<Vec<f64>>();
-
+            
+            // I think the clients have to know that we do like this,
+            // this may be a regulatory issue for them if they not aware
             let (bid, ask) = match prices[1] > prices[0] {
                 true => (prices[0], prices[1]),
                 false => (prices[1], prices[0]),
@@ -97,6 +114,7 @@ impl SocketEventCallback<FixMessage, FixMessageSerializer> for FixMessageHandler
                 payload,
             } => match payload.mesage_type {
                 FixMessageType::Payload(data) => {
+                    
                     match data {
                         crate::FixPayload::Logon(_) => {
                             self.send_instrument_subscribe(&connection).await
@@ -110,8 +128,8 @@ impl SocketEventCallback<FixMessage, FixMessageSerializer> for FixMessageHandler
                         crate::FixPayload::MarketData(_) => {
                             self.handle_price_tick_message(data).await
                         }
-                        crate::FixPayload::Others(message) => {
-                            println!("Found other message: {}", message.to_string());
+                        crate::FixPayload::Others(_message) => {
+                            //println!("Found other message: {}", message.to_string());
                         }
                     };
                 }

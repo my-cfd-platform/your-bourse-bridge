@@ -145,7 +145,14 @@ impl TcpSocketSerializer<FixMessage> for FixMessageSerializer {
 
             match chunk {
                 Ok(res) => {
-                    let equals_index = res.iter().position(|x| x == &FIX_EQUALS).unwrap();
+                    let equals_index = res.iter().position(|x| x == &FIX_EQUALS);
+                    //sometimes panics here
+                    if equals_index == None{
+                        println!("Err here: {}",String::from_utf8(result.to_vec()).unwrap());
+                        println!("Failed on: {}", String::from_utf8(chunk.unwrap().to_vec()).unwrap());
+                        break;
+                    }
+                    let equals_index = equals_index.unwrap();
                     let key = String::from_utf8(res[0..equals_index].to_vec()).unwrap();
                     result.extend_from_slice(res);
                     if key == "10".to_string() {
@@ -158,7 +165,6 @@ impl TcpSocketSerializer<FixMessage> for FixMessageSerializer {
                 }
             };
         }
-
         if result.len() == 0 {
             return Err(ReadingTcpContractFail::ErrorReadingSize);
         }

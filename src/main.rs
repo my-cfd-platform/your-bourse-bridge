@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use your_borse_bridge::{setup_and_start, AppContext, SettingsModel};
+use your_bourse_bridge::{setup_and_start, AppContext, SettingsModel};
 
 #[tokio::main]
 async fn main() {
