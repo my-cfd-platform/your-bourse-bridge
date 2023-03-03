@@ -1,4 +1,4 @@
-use std::{sync::{atomic::AtomicU64}, vec};
+use std::{sync::{atomic::AtomicU64}, vec, env};
 
 use chrono::Utc;
 use my_tcp_sockets::{
@@ -65,14 +65,23 @@ impl FixMessageSerializer {
         fix_builder.with_value(52, date_string.as_str());
         fix_builder.with_value(56, target_comp_id);
         fix_builder.with_value(34, count.to_string().as_str());
+        //MDReqID - can be just a symbol name
         fix_builder.with_value(262, &uuid.to_string());
+        //SubscriptionRequestType 1 = Snapshot + Updates
         fix_builder.with_value(263, "1");
+        //Market Depth 1 = Top of Book
         fix_builder.with_value(264, "1");
+        //MDUpdateType 
         fix_builder.with_value(265, "0");
+        //NoMDEntryTypes
         fix_builder.with_value(267, "2");
+        //Bid
         fix_builder.with_value(269, "0");
+        //Ask
         fix_builder.with_value(269, "1");
+        //NoRelatedSym
         fix_builder.with_value(146, "1");
+        //Symbol
         fix_builder.with_value(55, instrument);
 
         return fix_builder;
@@ -138,19 +147,20 @@ impl TcpSocketSerializer<FixMessage> for FixMessageSerializer {
         let mut result = vec![];
         let fix_delimetr = vec![FIX_DELIMETR];
         let mut buff = ReadBuffer::new(1024 * 24);
+        let mut parse_error = false;
         loop {
             let chunk = socket_reader
                 .read_until_end_marker(&mut buff, &fix_delimetr.as_slice())
                 .await;
-
             match chunk {
                 Ok(res) => {
                     let equals_index = res.iter().position(|x| x == &FIX_EQUALS);
                     //sometimes panics here
                     if equals_index == None{
-                        println!("Err here: {}",String::from_utf8(result.to_vec()).unwrap());
+                        parse_error = true;
+                        result.extend_from_slice(res);
                         println!("Failed on: {}", String::from_utf8(chunk.unwrap().to_vec()).unwrap());
-                        break;
+                        continue;
                     }
                     let equals_index = equals_index.unwrap();
                     let key = String::from_utf8(res[0..equals_index].to_vec()).unwrap();
@@ -165,12 +175,23 @@ impl TcpSocketSerializer<FixMessage> for FixMessageSerializer {
                 }
             };
         }
+        if parse_error {
+            println!("Err here: {}",String::from_utf8(result.to_vec()).unwrap());
+            return Err(ReadingTcpContractFail::ErrorReadingSize);
+        }
         if result.len() == 0 {
             return Err(ReadingTcpContractFail::ErrorReadingSize);
         }
 
         let fix = FixMessageBuilder::from_bytes(&result, false).unwrap();
         let message_type = fix.get_message_type_as_string();
+        
+        match env::var("FIX_DEBUG") {
+            Ok(_) => {
+                println!("debug: {}", fix.clone().to_string());
+            }
+            Err(_)=>{}
+        }
 
         let payload_type = match message_type.as_str() {
             "A" => FixPayload::Logon(fix),
@@ -179,7 +200,6 @@ impl TcpSocketSerializer<FixMessage> for FixMessageSerializer {
             "5" => FixPayload::Logout(fix),
             _ => FixPayload::Others(fix),
         };
-
         return Ok(FixMessage {
             mesage_type: FixMessageType::Payload(payload_type),
             // auth_data: self.auth_cread.clone(),

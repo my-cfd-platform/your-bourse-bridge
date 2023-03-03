@@ -71,13 +71,15 @@ impl FixMessageHandler {
                 .iter()
                 .map(|x| x.parse::<f64>().unwrap())
                 .collect::<Vec<f64>>();
-            
+
             // I think the clients have to know that we do like this,
             // this may be a regulatory issue for them if they not aware
-            let (bid, ask) = match prices[1] > prices[0] {
-                true => (prices[0], prices[1]),
-                false => (prices[1], prices[0]),
-            };
+            //let (bid, ask) = match prices[1] > prices[0] {
+            //    true => (prices[0], prices[1]),
+            //    false => (prices[1], prices[0]),
+            //};
+
+            let (bid, ask) = (prices[0], prices[1]);
 
             let id = message.get_value_string("55").unwrap();
             let datetime = message.get_value_string("52").unwrap();
