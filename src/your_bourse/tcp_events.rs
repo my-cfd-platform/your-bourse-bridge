@@ -54,15 +54,15 @@ impl FixMessageHandler {
             // there shall be always no_md_entries in the message
             // skip message if it's not exist
             let no_md_entries = message.get_value_string("268");
-            if no_md_entries == None{
+            if no_md_entries == None {
                 println!("Broken message? {}", message.to_string());
                 return;
             }
-            let no_md_entries = no_md_entries.unwrap().parse::<u32>().unwrap();//.collect::<u32>().unwrap();
-            
+            let no_md_entries = no_md_entries.unwrap().parse::<u32>().unwrap(); //.collect::<u32>().unwrap();
+
             // not sure why buy sometimes there are no prices available in the message,
             // so we skip the message
-            if no_md_entries < 2{
+            if no_md_entries < 2 {
                 println!("Broken message? {}", message.to_string());
                 return;
             }
@@ -110,13 +110,12 @@ impl SocketEventCallback<FixMessage, FixMessageSerializer> for FixMessageHandler
     async fn handle(&self, connection_event: ConnectionEvent<FixMessage, FixMessageSerializer>) {
         match connection_event {
             ConnectionEvent::Connected(connection) => self.send_logon(&connection).await,
-            ConnectionEvent::Disconnected(_) => todo!(),
+            ConnectionEvent::Disconnected(_) => println!("Disconnected from FIX-Feed"),
             ConnectionEvent::Payload {
                 connection,
                 payload,
             } => match payload.mesage_type {
                 FixMessageType::Payload(data) => {
-                    
                     match data {
                         crate::FixPayload::Logon(_) => {
                             self.send_instrument_subscribe(&connection).await
