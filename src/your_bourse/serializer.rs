@@ -59,7 +59,7 @@ impl FixMessageSerializer {
             .message_counter
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let mut fix_builder = FixMessageBuilder::new("FIX.4.4", "V");
-        let uuid = uuid::Uuid::new_v4();
+        let uuid = chrono::Utc::now().timestamp_nanos().to_string();
 
         fix_builder.with_value(49, sender_comp_id);
         fix_builder.with_value(52, date_string.as_str());
