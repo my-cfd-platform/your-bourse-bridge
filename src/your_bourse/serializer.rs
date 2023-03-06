@@ -182,6 +182,12 @@ impl TcpSocketSerializer<FixMessage> for FixMessageSerializer {
         if result.len() == 0 {
             return Err(ReadingTcpContractFail::ErrorReadingSize);
         }
+        match env::var("FIX_DEBUG") {
+            Ok(_) => {
+                println!("message to serialise: {}", String::from_utf8(result.to_vec()).unwrap());
+            }
+            Err(_)=>{}
+        }
 
         let fix = FixMessageBuilder::from_bytes(&result, false).unwrap();
         let message_type = fix.get_message_type_as_string();
