@@ -5,7 +5,7 @@ use rust_extensions::AppStates;
 use tokio::sync::Mutex;
 
 use crate::{
-    setup_price_tcp_server, FixMessageHandler, FixMessageSerializer, LogonCread, SettingsModel,
+    setup_price_tcp_server, FixMessageHandler, FixMessageSerializer, LogonCreeds, SettingsModel,
     TcpConnection,
 };
 
@@ -36,7 +36,7 @@ pub async fn setup_and_start(app: &Arc<AppContext>) {
     let settings = app.settings.clone();
     let app_to_spawn = app.clone();
 
-    let fix_auth_creads = LogonCread {
+    let fix_auth_creads = LogonCreeds {
         password: settings.your_bourse_pass.clone(),
         sender: settings.your_bourse_sender_company_id.clone(),
         target: settings.your_bourse_target_company_id.clone(),

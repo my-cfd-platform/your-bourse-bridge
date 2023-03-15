@@ -8,15 +8,15 @@ use my_tcp_sockets::{
 
 use rust_fix::{FixMessageBuilder, FIX_DELIMETR, FIX_EQUALS};
 
-use crate::{FixMessage, FixMessageType, FixPayload, LogonCread};
+use crate::{FixMessage, FixMessageType, FixPayload, LogonCreeds};
 
 pub struct FixMessageSerializer {
     message_counter: AtomicU64,
-    auth_cread: LogonCread,
+    auth_cread: LogonCreeds,
 }
 
 impl FixMessageSerializer {
-    pub fn new(auth_cread: LogonCread) -> Self {
+    pub fn new(auth_cread: LogonCreeds) -> Self {
         Self {
             message_counter: AtomicU64::new(1),
             auth_cread: auth_cread.to_owned(),
@@ -111,16 +111,16 @@ impl TcpSocketSerializer<FixMessage> for FixMessageSerializer {
 
     fn serialize(&self, contract: FixMessage) -> Vec<u8> {
         let FixMessage {
-            mesage_type,
+            message_type,
             // auth_data,
         } = contract;
-        let LogonCread {
+        let LogonCreeds {
             password,
             sender,
             target,
         } = &self.auth_cread;
 
-        let to_send = match mesage_type {
+        let to_send = match message_type {
             FixMessageType::SubscribeToInstrument(instrument) => {
                 self.serialize_instrument_subscribe(&instrument, &sender, &target)
             }
@@ -128,6 +128,7 @@ impl TcpSocketSerializer<FixMessage> for FixMessageSerializer {
             FixMessageType::Payload(_) => panic!("cant serialize payload, only for income"),
             FixMessageType::Pong => panic!("cant serialize ping, only for income"),
             FixMessageType::Ping => self.serialize_ping(&sender, &target),
+            FixMessageType::CorruptedMessage(_, _) => self.serialize_ping(&sender, &target),
         };
 
         return to_send.as_bytes().to_vec();
@@ -135,7 +136,7 @@ impl TcpSocketSerializer<FixMessage> for FixMessageSerializer {
 
     fn get_ping(&self) -> FixMessage {
         return FixMessage {
-            mesage_type: FixMessageType::Ping,
+            message_type: FixMessageType::Ping,
             // auth_data: self.auth_cread.clone(),
         };
     }
@@ -147,7 +148,6 @@ impl TcpSocketSerializer<FixMessage> for FixMessageSerializer {
         let mut result = vec![];
         let fix_delimetr = vec![FIX_DELIMETR];
         let mut buff = ReadBuffer::new(1024 * 24);
-        let mut parse_error = false;
         loop {
             let chunk = socket_reader
                 .read_until_end_marker(&mut buff, &fix_delimetr.as_slice())
@@ -157,10 +157,10 @@ impl TcpSocketSerializer<FixMessage> for FixMessageSerializer {
                     let equals_index = res.iter().position(|x| x == &FIX_EQUALS);
                     //sometimes panics here
                     if equals_index == None{
-                        parse_error = true;
                         result.extend_from_slice(res);
-                        println!("Failed on: {}", String::from_utf8(chunk.unwrap().to_vec()).unwrap());
-                        continue;
+                        return Ok(FixMessage{
+                            message_type: FixMessageType::CorruptedMessage("Failed to find equals index".to_string(), chunk.unwrap().to_vec()),
+                        });
                     }
                     let equals_index = equals_index.unwrap();
                     let key = String::from_utf8(res[0..equals_index].to_vec()).unwrap();
@@ -175,18 +175,9 @@ impl TcpSocketSerializer<FixMessage> for FixMessageSerializer {
                 }
             };
         }
-        if parse_error {
-            println!("Err here: {}",String::from_utf8(result.to_vec()).unwrap());
-            return Err(ReadingTcpContractFail::ErrorReadingSize);
-        }
+
         if result.len() == 0 {
             return Err(ReadingTcpContractFail::ErrorReadingSize);
-        }
-        match env::var("FIX_DEBUG") {
-            Ok(_) => {
-                println!("message to serialise: {}", String::from_utf8(result.to_vec()).unwrap());
-            }
-            Err(_)=>{}
         }
 
         let fix = FixMessageBuilder::from_bytes(&result, false).unwrap();
@@ -207,7 +198,7 @@ impl TcpSocketSerializer<FixMessage> for FixMessageSerializer {
             _ => FixPayload::Others(fix),
         };
         return Ok(FixMessage {
-            mesage_type: FixMessageType::Payload(payload_type),
+            message_type: FixMessageType::Payload(payload_type),
             // auth_data: self.auth_cread.clone(),
         });
     }

@@ -34,7 +34,7 @@ impl FixMessageHandler {
             .collect::<Vec<String>>();
         for instrument in instruments_to_subsribe {
             let subscribe_message = FixMessage {
-                mesage_type: FixMessageType::SubscribeToInstrument(instrument),
+                message_type: FixMessageType::SubscribeToInstrument(instrument),
             };
             connection.send(subscribe_message).await;
         }
@@ -44,7 +44,7 @@ impl FixMessageHandler {
         connection: &Arc<SocketConnection<FixMessage, FixMessageSerializer>>,
     ) {
         let subscribe_message = FixMessage {
-            mesage_type: FixMessageType::Logon,
+            message_type: FixMessageType::Logon,
         };
         connection.send(subscribe_message).await;
     }
@@ -114,7 +114,7 @@ impl SocketEventCallback<FixMessage, FixMessageSerializer> for FixMessageHandler
             ConnectionEvent::Payload {
                 connection,
                 payload,
-            } => match payload.mesage_type {
+            } => match payload.message_type {
                 FixMessageType::Payload(data) => {
                     match data {
                         crate::FixPayload::Logon(_) => {

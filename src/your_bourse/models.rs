@@ -2,14 +2,14 @@ use my_tcp_sockets::tcp_connection::TcpContract;
 use rust_fix::FixMessageBuilder;
 
 #[derive(Debug, Clone)]
-pub struct LogonCread{
+pub struct LogonCreeds{
     pub password: String,
     pub sender: String,
     pub target: String,
 }
 
 pub struct FixMessage {
-    pub mesage_type: FixMessageType,
+    pub message_type: FixMessageType,
     // pub auth_data: LogonCread,
 }
 
@@ -19,11 +19,12 @@ pub enum FixMessageType{
     Payload(FixPayload),
     Pong,
     Ping,
+    CorruptedMessage(String, Vec<u8>),
 }
 
 impl TcpContract for FixMessage {
     fn is_pong(&self) -> bool {
-        match self.mesage_type {
+        match self.message_type {
             FixMessageType::Pong => true,
             _ => false,
         }
