@@ -1,4 +1,4 @@
-use std::{sync::{atomic::AtomicU64}, vec, env};
+use std::{env, sync::atomic::AtomicU64, vec};
 
 use chrono::Utc;
 use my_tcp_sockets::{
@@ -71,7 +71,7 @@ impl FixMessageSerializer {
         fix_builder.with_value(263, "1");
         //Market Depth 1 = Top of Book
         fix_builder.with_value(264, "1");
-        //MDUpdateType 
+        //MDUpdateType
         fix_builder.with_value(265, "0");
         //NoMDEntryTypes
         fix_builder.with_value(267, "2");
@@ -156,10 +156,13 @@ impl TcpSocketSerializer<FixMessage> for FixMessageSerializer {
                 Ok(res) => {
                     let equals_index = res.iter().position(|x| x == &FIX_EQUALS);
                     //sometimes panics here
-                    if equals_index == None{
+                    if equals_index == None {
                         result.extend_from_slice(res);
-                        return Ok(FixMessage{
-                            message_type: FixMessageType::CorruptedMessage("Failed to find equals index".to_string(), chunk.unwrap().to_vec()),
+                        return Ok(FixMessage {
+                            message_type: FixMessageType::CorruptedMessage(
+                                "Failed to find equals index".to_string(),
+                                chunk.unwrap().to_vec(),
+                            ),
                         });
                     }
                     let equals_index = equals_index.unwrap();
@@ -180,26 +183,30 @@ impl TcpSocketSerializer<FixMessage> for FixMessageSerializer {
             return Err(ReadingTcpContractFail::ErrorReadingSize);
         }
 
-        let fix = FixMessageBuilder::from_bytes(&result, false).unwrap();
-        let message_type = fix.get_message_type_as_string();
-        
-        match env::var("FIX_DEBUG") {
-            Ok(_) => {
-                println!("debug: {}", fix.clone().to_string());
-            }
-            Err(_)=>{}
-        }
+        match FixMessageBuilder::from_bytes(&result, false) {
+            Ok(fix) => {
+                let message_type = fix.get_message_type_as_string();
 
-        let payload_type = match message_type.as_str() {
-            "A" => FixPayload::Logon(fix),
-            "W" => FixPayload::MarketData(fix),
-            "3" => FixPayload::Reject(fix),
-            "5" => FixPayload::Logout(fix),
-            _ => FixPayload::Others(fix),
+                let payload_type = match message_type.as_str() {
+                    "A" => FixPayload::Logon(fix),
+                    "W" => FixPayload::MarketData(fix),
+                    "3" => FixPayload::Reject(fix),
+                    "5" => FixPayload::Logout(fix),
+                    _ => FixPayload::Others(fix),
+                };
+                return Ok(FixMessage {
+                    message_type: FixMessageType::Payload(payload_type),
+                    // auth_data: self.auth_cread.clone(),
+                });
+            }
+            Err(_) => {
+                return Ok(FixMessage {
+                    message_type: FixMessageType::CorruptedMessage(
+                        "Version not found".to_string(),
+                        result,
+                    ),
+                });
+            }
         };
-        return Ok(FixMessage {
-            message_type: FixMessageType::Payload(payload_type),
-            // auth_data: self.auth_cread.clone(),
-        });
     }
 }
