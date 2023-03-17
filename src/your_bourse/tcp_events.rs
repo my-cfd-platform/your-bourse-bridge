@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, collections::HashMap, env};
 
 use chrono::{DateTime, NaiveDateTime, Utc};
 use my_tcp_sockets::{tcp_connection::SocketConnection, ConnectionEvent, SocketEventCallback};
@@ -12,11 +12,12 @@ use super::{FixMessage, FixMessageSerializer};
 
 pub struct FixMessageHandler {
     app: Arc<AppContext>,
+    map: HashMap<String, Vec<String>>
 }
 
 impl FixMessageHandler {
-    pub fn new(app: Arc<AppContext>) -> Self {
-        Self { app }
+    pub fn new(app: Arc<AppContext>, map: HashMap<String, Vec<String>>) -> Self {
+        Self { app, map }
     }
 }
 
@@ -25,6 +26,25 @@ impl FixMessageHandler {
         &self,
         connection: &Arc<SocketConnection<FixMessage, FixMessageSerializer>>,
     ) {
+
+        let maps = &self.map;
+        let mut info_message = "Subscribing to ".to_owned();
+        for (external_instrument, _ ) in maps {
+            info_message.push_str(format!("{} ", external_instrument).as_str());
+            let subscribe_message = FixMessage {
+                message_type: FixMessageType::SubscribeToInstrument(external_instrument.to_string()),
+            };
+            connection.send(subscribe_message).await;
+        }
+        
+        self.app.logger.write_log(
+            my_logger::LogLevel::Info,
+            String::from("FixMessageHandler"),
+            info_message,
+            None,
+        );
+
+        /*
         let instruments_to_subsribe = self
             .app
             .settings
@@ -38,6 +58,7 @@ impl FixMessageHandler {
             };
             connection.send(subscribe_message).await;
         }
+        */
     }
     async fn send_logon(
         &self,
@@ -55,7 +76,12 @@ impl FixMessageHandler {
             // skip message if it's not exist
             let no_md_entries = message.get_value_string("268");
             if no_md_entries == None {
-                println!("Broken message? {}", message.to_string());
+                self.app.logger.write_log(
+                    my_logger::LogLevel::Info,
+                    String::from("FixMessageHandler"),
+                    format!("Broken Message: {}", message.to_string()),
+                    None,
+                );
                 return;
             }
             let no_md_entries = no_md_entries.unwrap().parse::<u32>().unwrap(); //.collect::<u32>().unwrap();
@@ -63,7 +89,12 @@ impl FixMessageHandler {
             // not sure why buy sometimes there are no prices available in the message,
             // so we skip the message
             if no_md_entries < 2 {
-                println!("Broken message? {}", message.to_string());
+                self.app.logger.write_log(
+                    my_logger::LogLevel::Info,
+                    String::from("FixMessageHandler"),
+                    format!("Broken Message: {}", message.to_string()),
+                    None,
+                );
                 return;
             }
             let prices = message
@@ -129,8 +160,26 @@ impl SocketEventCallback<FixMessage, FixMessageSerializer> for FixMessageHandler
                         crate::FixPayload::MarketData(_) => {
                             self.handle_price_tick_message(data).await
                         }
+                        crate::FixPayload::MarketDataReject(message) => {
+                            self.app.logger.write_log(
+                                my_logger::LogLevel::Error,
+                                String::from("FixMessageHandler"),
+                                format!("Market Data Rejected: {}", message.to_string()),
+                                None,
+                            );
+                        }
                         crate::FixPayload::Others(_message) => {
-                            //println!("Found other message: {}", message.to_string());
+                            match env::var("FIX_DEBUG") {
+                                Ok(_) => {
+                                    self.app.logger.write_log(
+                                        my_logger::LogLevel::Info,
+                                        String::from("FixMessageHandler"),
+                                        format!("Other Message: {}",_message.to_string()),
+                                        None,
+                                    );
+                                }
+                                Err(_)=>{}
+                            }
                         }
                     };
                 }

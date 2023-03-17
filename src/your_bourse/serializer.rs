@@ -8,18 +8,18 @@ use my_tcp_sockets::{
 
 use rust_fix::{FixMessageBuilder, FIX_DELIMETR, FIX_EQUALS};
 
-use crate::{FixMessage, FixMessageType, FixPayload, LogonCreeds};
+use crate::{FixMessage, FixMessageType, FixPayload, LogonCreds};
 
 pub struct FixMessageSerializer {
     message_counter: AtomicU64,
-    auth_cread: LogonCreeds,
+    auth_creds: LogonCreds,
 }
 
 impl FixMessageSerializer {
-    pub fn new(auth_cread: LogonCreeds) -> Self {
+    pub fn new(auth_creds: LogonCreds) -> Self {
         Self {
             message_counter: AtomicU64::new(1),
-            auth_cread: auth_cread.to_owned(),
+            auth_creds: auth_creds.to_owned(),
         }
     }
 
@@ -114,11 +114,11 @@ impl TcpSocketSerializer<FixMessage> for FixMessageSerializer {
             message_type,
             // auth_data,
         } = contract;
-        let LogonCreeds {
+        let LogonCreds {
             password,
             sender,
             target,
-        } = &self.auth_cread;
+        } = &self.auth_creds;
 
         let to_send = match message_type {
             FixMessageType::SubscribeToInstrument(instrument) => {
@@ -133,24 +133,46 @@ impl TcpSocketSerializer<FixMessage> for FixMessageSerializer {
 
         return to_send.as_bytes().to_vec();
     }
+    fn serialize_ref(&self, contract: &FixMessage) -> Vec<u8> {
+        let FixMessage {
+            message_type,
+            // auth_data,
+        } = contract;
+        let LogonCreds {
+            password,
+            sender,
+            target,
+        } = &self.auth_creds;
 
+        let to_send = match message_type {
+            FixMessageType::SubscribeToInstrument(instrument) => {
+                self.serialize_instrument_subscribe(&instrument, &sender, &target)
+            }
+            FixMessageType::Logon => self.serialize_logon(&password, &sender, &target),
+            FixMessageType::Payload(_) => panic!("cant serialize payload, only for income"),
+            FixMessageType::Pong => panic!("cant serialize ping, only for income"),
+            FixMessageType::Ping => self.serialize_ping(&sender, &target),
+            FixMessageType::CorruptedMessage(_, _) => self.serialize_ping(&sender, &target),
+        };
+
+        return to_send.as_bytes().to_vec();
+    }
     fn get_ping(&self) -> FixMessage {
         return FixMessage {
             message_type: FixMessageType::Ping,
             // auth_data: self.auth_cread.clone(),
         };
     }
-
     async fn deserialize<TSocketReader: Send + Sync + 'static + SocketReader>(
         &mut self,
         socket_reader: &mut TSocketReader,
     ) -> Result<FixMessage, ReadingTcpContractFail> {
         let mut result = vec![];
-        let fix_delimetr = vec![FIX_DELIMETR];
+        let fix_delimiter = vec![FIX_DELIMETR];
         let mut buff = ReadBuffer::new(1024 * 24);
         loop {
             let chunk = socket_reader
-                .read_until_end_marker(&mut buff, &fix_delimetr.as_slice())
+                .read_until_end_marker(&mut buff, &fix_delimiter.as_slice())
                 .await;
             match chunk {
                 Ok(res) => {
@@ -190,13 +212,14 @@ impl TcpSocketSerializer<FixMessage> for FixMessageSerializer {
                 let payload_type = match message_type.as_str() {
                     "A" => FixPayload::Logon(fix),
                     "W" => FixPayload::MarketData(fix),
+                    "Y" => FixPayload::MarketDataReject(fix),
                     "3" => FixPayload::Reject(fix),
                     "5" => FixPayload::Logout(fix),
                     _ => FixPayload::Others(fix),
                 };
                 return Ok(FixMessage {
                     message_type: FixMessageType::Payload(payload_type),
-                    // auth_data: self.auth_cread.clone(),
+                    // auth_data: self.auth_creds.clone(),
                 });
             }
             Err(_) => {
@@ -208,5 +231,8 @@ impl TcpSocketSerializer<FixMessage> for FixMessageSerializer {
                 });
             }
         };
+    }
+    fn apply_packet(&mut self, _contract: &FixMessage) -> bool {
+        false
     }
 }

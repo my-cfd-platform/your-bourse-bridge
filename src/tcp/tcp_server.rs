@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, sync::Arc, env};
 
 use my_tcp_sockets::{tcp_connection::SocketConnection, TcpServer};
 use rust_extensions::AppStates;
@@ -39,9 +39,23 @@ impl PriceRouterTcpServer {
 }
 
 pub fn setup_price_tcp_server(app: &Arc<AppContext>) -> PriceRouterTcpServer {
+    let mut port = 8085;
+    match env::var("CUSTOM_PORT") {
+        Ok(val) => {
+            port = val.parse().unwrap();
+        }
+        Err(_)=>{}
+    }
     let tcp_server: TcpServer<BidAskTcpMessage, BidAskTcpSerializer> = TcpServer::new(
         "YourBoursePriceBridge".to_string(),
-        SocketAddr::from(([0, 0, 0, 0], 8085)),
+        SocketAddr::from(([0, 0, 0, 0], port)),
+    );
+
+    app.logger.write_log(
+        my_logger::LogLevel::Info,
+        String::from("PriceRouterTcpServer"),
+        format!("Listening on port: {}", port),
+        None,
     );
 
     return PriceRouterTcpServer {

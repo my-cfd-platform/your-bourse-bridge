@@ -31,6 +31,12 @@ impl TcpSocketSerializer<BidAskTcpMessage> for BidAskTcpSerializer {
         result.extend_from_slice(CLCR);
         result
     }
+    fn serialize_ref(&self, contract: &BidAskTcpMessage) -> Vec<u8> {
+        let mut result = Vec::with_capacity(MAX_PACKET_CAPACITY);
+        contract.serialize(&mut result).unwrap();
+        result.extend_from_slice(CLCR);
+        result
+    }
     fn get_ping(&self) -> BidAskTcpMessage {
         return BidAskTcpMessage::Ping;
     }
@@ -49,5 +55,8 @@ impl TcpSocketSerializer<BidAskTcpMessage> for BidAskTcpSerializer {
             Ok(result) => Ok(result),
             Err(_) => Err(ReadingTcpContractFail::ErrorReadingSize),
         }
+    }
+    fn apply_packet(&mut self, _contract: &BidAskTcpMessage) -> bool {
+        false
     }
 }

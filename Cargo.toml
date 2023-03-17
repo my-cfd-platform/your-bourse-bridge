@@ -18,6 +18,10 @@ flurl = { tag = "0.2.3", git = "https://github.com/MyJetTools/fl-url.git" }
 my-tcp-sockets = { tag = "0.1.7", git = "https://github.com/MyJetTools/my-tcp-sockets.git" }
 rust-fix = {git = "https://github.com/RomanSavh/rust-fix", tag = "0.1.0"}
 
+my-no-sql-server-abstractions = { tag = "0.1.1", git = "https://github.com/MyJetTools/my-no-sql-server-abstractions.git" }
+my-no-sql-tcp-reader = { tag = "0.1.8", git = "https://github.com/MyJetTools/my-no-sql-tcp-reader.git" }
+my-seq-logger = { tag = "0.2.1", git = "https://github.com/MyJetTools/my-seq-logger.git" }
+
 serde = { version = "*", features = ["derive"] }
 serde_json = "*"
 tokio = { version = "*", features = ["full"] }

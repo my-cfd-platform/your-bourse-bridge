@@ -2,7 +2,7 @@ use my_tcp_sockets::tcp_connection::TcpContract;
 use rust_fix::FixMessageBuilder;
 
 #[derive(Debug, Clone)]
-pub struct LogonCreeds{
+pub struct LogonCreds{
     pub password: String,
     pub sender: String,
     pub target: String,
@@ -36,5 +36,6 @@ pub enum FixPayload {
     Reject(FixMessageBuilder),
     Logout(FixMessageBuilder),
     MarketData(FixMessageBuilder),
+    MarketDataReject(FixMessageBuilder),
     Others(FixMessageBuilder),
 }
