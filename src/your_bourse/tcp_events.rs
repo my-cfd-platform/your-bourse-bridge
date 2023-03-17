@@ -112,11 +112,22 @@ impl FixMessageHandler {
 
             let (bid, ask) = (prices[0], prices[1]);
 
-            let id = message.get_value_string("55").unwrap();
+            let external_market = message.get_value_string("55").unwrap();
             let datetime = message.get_value_string("52").unwrap();
-
             let nd = NaiveDateTime::parse_from_str(&datetime, "%Y%m%d-%H:%M:%S%.3f").unwrap();
             let date_time = DateTime::<Utc>::from_utc(nd, Utc);
+            
+            if let Some(mapped_market) = self.map.get(&external_market)
+                {
+                    let markets = mapped_market.to_owned();
+                    for market in markets {
+                        self.send_to_tcp(market, date_time, bid, ask).await;
+                    }
+                }
+
+            
+            /*
+            
             let tcp_datetime = BidAskDateTimeTcpModel::Source(date_time);
 
             let tcp_message = BidAskDataTcpModel {
@@ -132,7 +143,34 @@ impl FixMessageHandler {
                     .send(BidAskTcpMessage::BidAsk(tcp_message.clone()))
                     .await;
             }
+            */
         }
+    }
+    async fn send_to_tcp(
+        &self,
+        market: String,
+        time: DateTime<Utc>,
+        bid: f64,
+        ask: f64,
+    ) {
+        let tcp_datetime = BidAskDateTimeTcpModel::Source(time);
+        //let bid = bid.as_str().parse::<f64>().unwrap();
+        //let ask = ask.as_str().parse::<f64>().unwrap();
+        let tcp_message = BidAskDataTcpModel {
+            exchange_id: "YOUR_BOURSE".to_string(),
+            instrument_id: market,
+            bid,
+            ask,
+            volume: 0.0,
+            datetime: tcp_datetime,
+        };
+
+        for connection in self.app.connections.lock().await.values() {
+            connection
+                .send(BidAskTcpMessage::BidAsk(tcp_message.clone()))
+                .await;
+        }
+
     }
 }
 

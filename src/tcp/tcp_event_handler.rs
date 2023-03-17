@@ -23,13 +23,24 @@ impl SocketEventCallback<BidAskTcpMessage, BidAskTcpSerializer> for PriceTcpServ
         match connection_event {
             ConnectionEvent::Connected(connection) => {
                 let mut write_access = self.app.connections.lock().await;
-                println!("New connection {}", connection.id);
+                self.app.logger.write_log(
+                    my_logger::LogLevel::Info,
+                    String::from("PriceTcpServerCallback"),
+                    format!("New connection {}", connection.id),
+                    None,
+                );
+                
                 write_access.insert(connection.id, connection);
             }
             ConnectionEvent::Disconnected(connection) => {
                 let mut write_access = self.app.connections.lock().await;
                 write_access.remove(&connection.id);
-                println!("Disconnected {}", connection.id);
+                self.app.logger.write_log(
+                    my_logger::LogLevel::Info,
+                    String::from("PriceTcpServerCallback"),
+                    format!("Disconnected {}", connection.id),
+                    None,
+                );
             }
             ConnectionEvent::Payload {
                 connection,
@@ -38,7 +49,7 @@ impl SocketEventCallback<BidAskTcpMessage, BidAskTcpSerializer> for PriceTcpServ
                 if payload.is_ping() {
                     connection.send(BidAskTcpMessage::Pong).await;
                 }
-                println!("Received payload from {:?}", payload);
+                //println!("Received payload from {:?}", payload);
             }
         }
     }
