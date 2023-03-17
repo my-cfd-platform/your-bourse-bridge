@@ -10,6 +10,7 @@ use rust_fix::{FixMessageBuilder, FIX_DELIMETR, FIX_EQUALS};
 
 use crate::{FixMessage, FixMessageType, FixPayload, LogonCredentials};
 
+const FIX_DELIMETR_AS_ARR: [u8; 1] = [FIX_DELIMETR];
 pub struct FixMessageSerializer {
     message_counter: AtomicU64,
     auth_credentials: LogonCredentials,
@@ -164,10 +165,9 @@ impl TcpSocketSerializer<FixMessage> for FixMessageSerializer {
         socket_reader: &mut TSocketReader,
     ) -> Result<FixMessage, ReadingTcpContractFail> {
         let mut result = vec![];
-        let fix_delimiter = [FIX_DELIMETR];
         loop {
             let chunk = socket_reader
-                .read_until_end_marker(&mut self.buffer, &fix_delimiter.as_slice())
+                .read_until_end_marker(&mut self.buffer, &FIX_DELIMETR_AS_ARR.as_slice())
                 .await;
             match chunk {
                 Ok(res) => {
