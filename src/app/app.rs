@@ -1,20 +1,14 @@
-use std::{
-    collections::HashMap,
-    sync::Arc,
-    time::Duration,
-    thread::sleep
-};
+use std::{collections::HashMap, sync::Arc, thread::sleep, time::Duration};
 
+use my_logger::MyLogger;
+use my_no_sql_tcp_reader::{MyNoSqlDataReader, MyNoSqlTcpConnection};
 use my_tcp_sockets::TcpClient;
 use rust_extensions::AppStates;
 use tokio::sync::Mutex;
-use my_no_sql_tcp_reader::{MyNoSqlDataReader, MyNoSqlTcpConnection};
-use my_logger::MyLogger;
 
 use crate::{
-    setup_price_tcp_server,
-    FixMessageHandler, FixMessageSerializer, LogonCreds,
-    SettingsModel, TcpConnection, InstrumentMappingEntity,
+    setup_price_tcp_server, FixMessageHandler, FixMessageSerializer, InstrumentMappingEntity,
+    LogonCredentials, SettingsModel, TcpConnection,
 };
 
 pub const APP_VERSION: &'static str = env!("CARGO_PKG_VERSION");
@@ -26,7 +20,7 @@ pub struct AppContext {
     pub settings: Arc<SettingsModel>,
     pub connections: Mutex<HashMap<i32, Arc<TcpConnection>>>,
     pub tcp_client: TcpClient,
-    pub logger: Arc<MyLogger>
+    pub logger: Arc<MyLogger>,
 }
 
 impl AppContext {
@@ -38,7 +32,7 @@ impl AppContext {
             settings,
             connections: Mutex::new(HashMap::new()),
             tcp_client,
-            logger: my_logger::LOGGER.clone()
+            logger: my_logger::LOGGER.clone(),
         }
     }
 }
@@ -54,10 +48,10 @@ pub async fn setup_and_start(app: &Arc<AppContext>) {
     let settings = app.settings.clone();
     let app_to_spawn = app.clone();
 
-    let map = get_map(&settings).await;   
+    let map = get_map(&settings).await;
 
     // region create fix client with callback event handler
-    let fix_auth_creds = LogonCreds {
+    let fix_auth_creds = LogonCredentials {
         password: settings.your_bourse_pass.clone(),
         sender: settings.your_bourse_sender_company_id.clone(),
         target: settings.your_bourse_target_company_id.clone(),
@@ -87,8 +81,7 @@ pub async fn setup_and_start(app: &Arc<AppContext>) {
     app.app_states.set_initialized();
 }
 
-async fn get_map(settings:&Arc<SettingsModel>) -> HashMap<String, Vec<String>>{
-
+async fn get_map(settings: &Arc<SettingsModel>) -> HashMap<String, Vec<String>> {
     let nosql_connection = MyNoSqlTcpConnection::new(APP_NAME.to_string(), settings.clone());
     let instruments_reader: Arc<MyNoSqlDataReader<InstrumentMappingEntity>> =
         nosql_connection.get_reader().await;
@@ -104,12 +97,14 @@ async fn get_map(settings:&Arc<SettingsModel>) -> HashMap<String, Vec<String>>{
     if map_entity_option.is_some() {
         let map_entity = map_entity_option.unwrap();
         for (our_symbol, external_symbol) in map_entity.map.iter() {
-            if !map.contains_key(external_symbol.as_str()){
+            if !map.contains_key(external_symbol.as_str()) {
                 map.insert(external_symbol.to_string(), Vec::new());
             }
-            map.get_mut(external_symbol).unwrap().push(our_symbol.to_string());
+            map.get_mut(external_symbol)
+                .unwrap()
+                .push(our_symbol.to_string());
         }
     }
     map
-// endregion
+    // endregion
 }

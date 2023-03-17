@@ -2,7 +2,7 @@ use my_tcp_sockets::tcp_connection::TcpContract;
 use rust_fix::FixMessageBuilder;
 
 #[derive(Debug, Clone)]
-pub struct LogonCreds{
+pub struct LogonCredentials{
     pub password: String,
     pub sender: String,
     pub target: String,
@@ -10,7 +10,6 @@ pub struct LogonCreds{
 
 pub struct FixMessage {
     pub message_type: FixMessageType,
-    // pub auth_data: LogonCread,
 }
 
 pub enum FixMessageType{
@@ -19,7 +18,6 @@ pub enum FixMessageType{
     Payload(FixPayload),
     Pong,
     Ping,
-    CorruptedMessage(String, Vec<u8>),
 }
 
 impl TcpContract for FixMessage {

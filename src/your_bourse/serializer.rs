@@ -1,4 +1,4 @@
-use std::{env, sync::atomic::AtomicU64, vec};
+use std::{sync::atomic::AtomicU64, vec};
 
 use chrono::Utc;
 use my_tcp_sockets::{
@@ -8,18 +8,20 @@ use my_tcp_sockets::{
 
 use rust_fix::{FixMessageBuilder, FIX_DELIMETR, FIX_EQUALS};
 
-use crate::{FixMessage, FixMessageType, FixPayload, LogonCreds};
+use crate::{FixMessage, FixMessageType, FixPayload, LogonCredentials};
 
 pub struct FixMessageSerializer {
     message_counter: AtomicU64,
-    auth_creds: LogonCreds,
+    auth_credentials: LogonCredentials,
+    buffer: ReadBuffer,
 }
 
 impl FixMessageSerializer {
-    pub fn new(auth_creds: LogonCreds) -> Self {
+    pub fn new(auth_credentials: LogonCredentials) -> Self {
         Self {
             message_counter: AtomicU64::new(1),
-            auth_creds: auth_creds.to_owned(),
+            auth_credentials: auth_credentials.to_owned(),
+            buffer: ReadBuffer::new(2048 * 24),
         }
     }
 
@@ -110,15 +112,12 @@ impl TcpSocketSerializer<FixMessage> for FixMessageSerializer {
     const PING_PACKET_IS_SINGLETONE: bool = false;
 
     fn serialize(&self, contract: FixMessage) -> Vec<u8> {
-        let FixMessage {
-            message_type,
-            // auth_data,
-        } = contract;
-        let LogonCreds {
+        let FixMessage { message_type } = contract;
+        let LogonCredentials {
             password,
             sender,
             target,
-        } = &self.auth_creds;
+        } = &self.auth_credentials;
 
         let to_send = match message_type {
             FixMessageType::SubscribeToInstrument(instrument) => {
@@ -128,7 +127,6 @@ impl TcpSocketSerializer<FixMessage> for FixMessageSerializer {
             FixMessageType::Payload(_) => panic!("cant serialize payload, only for income"),
             FixMessageType::Pong => panic!("cant serialize ping, only for income"),
             FixMessageType::Ping => self.serialize_ping(&sender, &target),
-            FixMessageType::CorruptedMessage(_, _) => self.serialize_ping(&sender, &target),
         };
 
         return to_send.as_bytes().to_vec();
@@ -138,11 +136,11 @@ impl TcpSocketSerializer<FixMessage> for FixMessageSerializer {
             message_type,
             // auth_data,
         } = contract;
-        let LogonCreds {
+        let LogonCredentials {
             password,
             sender,
             target,
-        } = &self.auth_creds;
+        } = &self.auth_credentials;
 
         let to_send = match message_type {
             FixMessageType::SubscribeToInstrument(instrument) => {
@@ -152,7 +150,6 @@ impl TcpSocketSerializer<FixMessage> for FixMessageSerializer {
             FixMessageType::Payload(_) => panic!("cant serialize payload, only for income"),
             FixMessageType::Pong => panic!("cant serialize ping, only for income"),
             FixMessageType::Ping => self.serialize_ping(&sender, &target),
-            FixMessageType::CorruptedMessage(_, _) => self.serialize_ping(&sender, &target),
         };
 
         return to_send.as_bytes().to_vec();
@@ -160,7 +157,6 @@ impl TcpSocketSerializer<FixMessage> for FixMessageSerializer {
     fn get_ping(&self) -> FixMessage {
         return FixMessage {
             message_type: FixMessageType::Ping,
-            // auth_data: self.auth_cread.clone(),
         };
     }
     async fn deserialize<TSocketReader: Send + Sync + 'static + SocketReader>(
@@ -168,25 +164,19 @@ impl TcpSocketSerializer<FixMessage> for FixMessageSerializer {
         socket_reader: &mut TSocketReader,
     ) -> Result<FixMessage, ReadingTcpContractFail> {
         let mut result = vec![];
-        let fix_delimiter = vec![FIX_DELIMETR];
-        let mut buff = ReadBuffer::new(1024 * 24);
+        let fix_delimiter = [FIX_DELIMETR];
         loop {
             let chunk = socket_reader
-                .read_until_end_marker(&mut buff, &fix_delimiter.as_slice())
+                .read_until_end_marker(&mut self.buffer, &fix_delimiter.as_slice())
                 .await;
             match chunk {
                 Ok(res) => {
                     let equals_index = res.iter().position(|x| x == &FIX_EQUALS);
                     //sometimes panics here
                     if equals_index == None {
-                        result.extend_from_slice(res);
-                        return Ok(FixMessage {
-                            message_type: FixMessageType::CorruptedMessage(
-                                "Failed to find equals index".to_string(),
-                                chunk.unwrap().to_vec(),
-                            ),
-                        });
+                        panic!("Not found equals sign during deserialization fix chunk")
                     }
+
                     let equals_index = equals_index.unwrap();
                     let key = String::from_utf8(res[0..equals_index].to_vec()).unwrap();
                     result.extend_from_slice(res);
@@ -219,16 +209,10 @@ impl TcpSocketSerializer<FixMessage> for FixMessageSerializer {
                 };
                 return Ok(FixMessage {
                     message_type: FixMessageType::Payload(payload_type),
-                    // auth_data: self.auth_creds.clone(),
                 });
             }
-            Err(_) => {
-                return Ok(FixMessage {
-                    message_type: FixMessageType::CorruptedMessage(
-                        "Version not found".to_string(),
-                        result,
-                    ),
-                });
+            Err(err) => {
+                panic!("Fix serialization error: {:?}", err)
             }
         };
     }
