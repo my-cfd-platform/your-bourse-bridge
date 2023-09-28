@@ -1,7 +1,8 @@
-use std::{sync::Arc, collections::HashMap, env};
+use std::{collections::HashMap, env, sync::Arc};
 
 use chrono::{DateTime, NaiveDateTime, Utc};
 use my_tcp_sockets::{tcp_connection::SocketConnection, ConnectionEvent, SocketEventCallback};
+use service_sdk::my_logger::LogEventCtx;
 
 use crate::{
     AppContext, BidAskDataTcpModel, BidAskDateTimeTcpModel, BidAskTcpMessage, FixMessageType,
@@ -12,7 +13,7 @@ use super::{FixMessage, FixMessageSerializer};
 
 pub struct FixMessageHandler {
     app: Arc<AppContext>,
-    map: HashMap<String, Vec<String>>
+    map: HashMap<String, Vec<String>>,
 }
 
 impl FixMessageHandler {
@@ -26,39 +27,23 @@ impl FixMessageHandler {
         &self,
         connection: &Arc<SocketConnection<FixMessage, FixMessageSerializer>>,
     ) {
-
         let maps = &self.map;
         let mut info_message = "Subscribing to ".to_owned();
-        for (external_instrument, _ ) in maps {
+        for (external_instrument, _) in maps {
             info_message.push_str(format!("{} ", external_instrument).as_str());
             let subscribe_message = FixMessage {
-                message_type: FixMessageType::SubscribeToInstrument(external_instrument.to_string()),
+                message_type: FixMessageType::SubscribeToInstrument(
+                    external_instrument.to_string(),
+                ),
             };
             connection.send(subscribe_message).await;
         }
-        
-        self.app.logger.write_log(
-            my_logger::LogLevel::Info,
+
+        service_sdk::my_logger::LOGGER.write_info(
             String::from("FixMessageHandler"),
             info_message,
-            None,
+            LogEventCtx::new(),
         );
-
-        /*
-        let instruments_to_subsribe = self
-            .app
-            .settings
-            .instruments_mapping
-            .iter()
-            .map(|x| x.1.clone())
-            .collect::<Vec<String>>();
-        for instrument in instruments_to_subsribe {
-            let subscribe_message = FixMessage {
-                message_type: FixMessageType::SubscribeToInstrument(instrument),
-            };
-            connection.send(subscribe_message).await;
-        }
-        */
     }
     async fn send_logon(
         &self,
@@ -76,11 +61,10 @@ impl FixMessageHandler {
             // skip message if it's not exist
             let no_md_entries = message.get_value_string("268");
             if no_md_entries == None {
-                self.app.logger.write_log(
-                    my_logger::LogLevel::Info,
+                service_sdk::my_logger::LOGGER.write_error(
                     String::from("FixMessageHandler"),
                     format!("Broken Message: {}", message.to_string()),
-                    None,
+                    LogEventCtx::new(),
                 );
                 return;
             }
@@ -89,11 +73,10 @@ impl FixMessageHandler {
             // not sure why buy sometimes there are no prices available in the message,
             // so we skip the message
             if no_md_entries < 2 {
-                self.app.logger.write_log(
-                    my_logger::LogLevel::Info,
+                service_sdk::my_logger::LOGGER.write_error(
                     String::from("FixMessageHandler"),
                     format!("Broken Message: {}", message.to_string()),
-                    None,
+                    LogEventCtx::new(),
                 );
                 return;
             }
@@ -116,18 +99,16 @@ impl FixMessageHandler {
             let datetime = message.get_value_string("52").unwrap();
             let nd = NaiveDateTime::parse_from_str(&datetime, "%Y%m%d-%H:%M:%S%.3f").unwrap();
             let date_time = DateTime::<Utc>::from_utc(nd, Utc);
-            
-            if let Some(mapped_market) = self.map.get(&external_market)
-                {
-                    let markets = mapped_market.to_owned();
-                    for market in markets {
-                        self.send_to_tcp(market, date_time, bid, ask).await;
-                    }
-                }
 
-            
+            if let Some(mapped_market) = self.map.get(&external_market) {
+                let markets = mapped_market.to_owned();
+                for market in markets {
+                    self.send_to_tcp(market, date_time, bid, ask).await;
+                }
+            }
+
             /*
-            
+
             let tcp_datetime = BidAskDateTimeTcpModel::Source(date_time);
 
             let tcp_message = BidAskDataTcpModel {
@@ -146,13 +127,7 @@ impl FixMessageHandler {
             */
         }
     }
-    async fn send_to_tcp(
-        &self,
-        market: String,
-        time: DateTime<Utc>,
-        bid: f64,
-        ask: f64,
-    ) {
+    async fn send_to_tcp(&self, market: String, time: DateTime<Utc>, bid: f64, ask: f64) {
         let tcp_datetime = BidAskDateTimeTcpModel::Source(time);
         //let bid = bid.as_str().parse::<f64>().unwrap();
         //let ask = ask.as_str().parse::<f64>().unwrap();
@@ -170,7 +145,6 @@ impl FixMessageHandler {
                 .send(BidAskTcpMessage::BidAsk(tcp_message.clone()))
                 .await;
         }
-
     }
 }
 
@@ -199,26 +173,22 @@ impl SocketEventCallback<FixMessage, FixMessageSerializer> for FixMessageHandler
                             self.handle_price_tick_message(data).await
                         }
                         crate::FixPayload::MarketDataReject(message) => {
-                            self.app.logger.write_log(
-                                my_logger::LogLevel::Error,
+                            service_sdk::my_logger::LOGGER.write_error(
                                 String::from("FixMessageHandler"),
                                 format!("Market Data Rejected: {}", message.to_string()),
-                                None,
+                                LogEventCtx::new(),
                             );
                         }
-                        crate::FixPayload::Others(_message) => {
-                            match env::var("FIX_DEBUG") {
-                                Ok(_) => {
-                                    self.app.logger.write_log(
-                                        my_logger::LogLevel::Info,
-                                        String::from("FixMessageHandler"),
-                                        format!("Other Message: {}",_message.to_string()),
-                                        None,
-                                    );
-                                }
-                                Err(_)=>{}
+                        crate::FixPayload::Others(_message) => match env::var("FIX_DEBUG") {
+                            Ok(_) => {
+                                service_sdk::my_logger::LOGGER.write_info(
+                                    String::from("FixMessageHandler"),
+                                    format!("Other Message: {}", _message.to_string()),
+                                    LogEventCtx::new(),
+                                );
                             }
-                        }
+                            Err(_) => {}
+                        },
                     };
                 }
                 _ => {}

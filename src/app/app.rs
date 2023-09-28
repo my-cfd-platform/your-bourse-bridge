@@ -1,14 +1,16 @@
 use std::{collections::HashMap, sync::Arc, thread::sleep, time::Duration};
 
-use my_logger::MyLogger;
-use my_no_sql_tcp_reader::{MyNoSqlDataReader, MyNoSqlTcpConnection};
 use my_tcp_sockets::TcpClient;
-use rust_extensions::AppStates;
+use service_sdk::{
+    my_logger::LogEventCtx,
+    my_no_sql_sdk::reader::{MyNoSqlDataReaderTcp, MyNoSqlTcpConnection},
+    ServiceContext,
+};
 use tokio::sync::Mutex;
 
 use crate::{
     setup_price_tcp_server, FixMessageHandler, FixMessageSerializer, InstrumentMappingEntity,
-    LogonCredentials, SettingsModel, TcpConnection,
+    LogonCredentials, SettingsReader, TcpConnection,
 };
 
 pub const APP_VERSION: &'static str = env!("CARGO_PKG_VERSION");
@@ -16,33 +18,28 @@ pub const APP_NAME: &'static str = env!("CARGO_PKG_NAME");
 const MAPPING_PK: &str = "im";
 
 pub struct AppContext {
-    pub app_states: Arc<AppStates>,
-    pub settings: Arc<SettingsModel>,
+    pub settings: Arc<SettingsReader>,
     pub connections: Mutex<HashMap<i32, Arc<TcpConnection>>>,
     pub tcp_client: TcpClient,
-    pub logger: Arc<MyLogger>,
 }
 
 impl AppContext {
-    pub fn new(settings: Arc<SettingsModel>) -> AppContext {
+    pub fn new(settings: Arc<SettingsReader>, _: &ServiceContext) -> AppContext {
         let tcp_client = TcpClient::new("yourbourse - fix-client".to_string(), settings.clone());
 
         AppContext {
-            app_states: Arc::new(AppStates::create_initialized()),
             settings,
             connections: Mutex::new(HashMap::new()),
             tcp_client,
-            logger: my_logger::LOGGER.clone(),
         }
     }
 }
 
-pub async fn setup_and_start(app: &Arc<AppContext>) {
-    app.logger.write_log(
-        my_logger::LogLevel::Info,
+pub async fn setup_and_start(app: &Arc<AppContext>, sc: &ServiceContext) {
+    service_sdk::my_logger::LOGGER.write_info(
         String::from("Main"),
         String::from("Service is starting"),
-        None,
+        LogEventCtx::new(),
     );
 
     let settings = app.settings.clone();
@@ -50,11 +47,11 @@ pub async fn setup_and_start(app: &Arc<AppContext>) {
 
     let map = get_map(&settings).await;
 
-    // region create fix client with callback event handler
+    let settings_model = settings.get_settings().await;
     let fix_auth_creds = LogonCredentials {
-        password: settings.your_bourse_pass.clone(),
-        sender: settings.your_bourse_sender_company_id.clone(),
-        target: settings.your_bourse_target_company_id.clone(),
+        password: settings_model.your_bourse_pass.clone(),
+        sender: settings_model.your_bourse_sender_company_id.clone(),
+        target: settings_model.your_bourse_target_company_id.clone(),
     };
 
     app.tcp_client
@@ -63,35 +60,31 @@ pub async fn setup_and_start(app: &Arc<AppContext>) {
                 FixMessageSerializer::new(fix_auth_creds.clone())
             }),
             Arc::new(FixMessageHandler::new(app_to_spawn, map)),
-            my_logger::LOGGER.clone(),
+            service_sdk::my_logger::LOGGER.clone(),
         )
         .await;
-    // endregion
 
-    let tcp_server = setup_price_tcp_server(&app);
+    let tcp_server = setup_price_tcp_server(&app, sc.app_states.clone());
     tcp_server.start().await;
 
-    app.logger.write_log(
-        my_logger::LogLevel::Info,
+    service_sdk::my_logger::LOGGER.write_info(
         String::from("App"),
         String::from("Service is started"),
-        None,
+        LogEventCtx::new(),
     );
-
-    app.app_states.set_initialized();
 }
 
-async fn get_map(settings: &Arc<SettingsModel>) -> HashMap<String, Vec<String>> {
+async fn get_map(settings: &Arc<SettingsReader>) -> HashMap<String, Vec<String>> {
     let nosql_connection = MyNoSqlTcpConnection::new(APP_NAME.to_string(), settings.clone());
-    let instruments_reader: Arc<MyNoSqlDataReader<InstrumentMappingEntity>> =
+    let instruments_reader: Arc<MyNoSqlDataReaderTcp<InstrumentMappingEntity>> =
         nosql_connection.get_reader().await;
-    nosql_connection.start().await;
 
-    // Wait 5 sec for nosql_connection to initiate
     sleep(Duration::from_millis(5000));
 
+    let settings_model = settings.get_settings().await;
+
     let map_entity_option = instruments_reader
-        .get_entity(MAPPING_PK, settings.liquidity_provider_id.as_str())
+        .get_entity(MAPPING_PK, settings_model.liquidity_provider_id.as_str())
         .await;
     let mut map = HashMap::<String, Vec<String>>::new();
     if map_entity_option.is_some() {
@@ -106,5 +99,4 @@ async fn get_map(settings: &Arc<SettingsModel>) -> HashMap<String, Vec<String>> 
         }
     }
     map
-    // endregion
 }

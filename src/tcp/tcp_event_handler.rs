@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use my_tcp_sockets::{ConnectionEvent, SocketEventCallback};
+use service_sdk::my_logger::LogEventCtx;
 
 use crate::{tcp::models::BidAskTcpMessage, AppContext, BidAskTcpSerializer};
 
@@ -23,11 +24,10 @@ impl SocketEventCallback<BidAskTcpMessage, BidAskTcpSerializer> for PriceTcpServ
         match connection_event {
             ConnectionEvent::Connected(connection) => {
                 let mut write_access = self.app.connections.lock().await;
-                self.app.logger.write_log(
-                    my_logger::LogLevel::Info,
+                service_sdk::my_logger::LOGGER.write_info(
                     String::from("PriceTcpServerCallback"),
                     format!("New connection {}", connection.id),
-                    None,
+                    LogEventCtx::new(),
                 );
                 
                 write_access.insert(connection.id, connection);
@@ -35,11 +35,10 @@ impl SocketEventCallback<BidAskTcpMessage, BidAskTcpSerializer> for PriceTcpServ
             ConnectionEvent::Disconnected(connection) => {
                 let mut write_access = self.app.connections.lock().await;
                 write_access.remove(&connection.id);
-                self.app.logger.write_log(
-                    my_logger::LogLevel::Info,
+                service_sdk::my_logger::LOGGER.write_info(
                     String::from("PriceTcpServerCallback"),
                     format!("Disconnected {}", connection.id),
-                    None,
+                    LogEventCtx::new(),
                 );
             }
             ConnectionEvent::Payload {
