@@ -47,6 +47,7 @@ impl FixMessageSerializer {
         fix_builder.with_value(554, password);
         fix_builder.with_value(98, "0");
 
+        println!("Logon message: {}", fix_builder.to_string());
         return fix_builder;
     }
 
@@ -194,6 +195,8 @@ impl TcpSocketSerializer<FixMessage> for FixMessageSerializer {
         if result.len() == 0 {
             return Err(ReadingTcpContractFail::ErrorReadingSize);
         }
+
+        
 
         match FixMessageBuilder::from_bytes(&result, false) {
             Ok(fix) => {

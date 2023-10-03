@@ -75,18 +75,27 @@ pub async fn setup_and_start(app: &Arc<AppContext>, sc: &ServiceContext) {
 }
 
 async fn get_map(settings: &Arc<SettingsReader>) -> HashMap<String, Vec<String>> {
-    let nosql_connection = MyNoSqlTcpConnection::new(APP_NAME.to_string(), settings.clone());
+    let nosql_connection: MyNoSqlTcpConnection = MyNoSqlTcpConnection::new(APP_NAME.to_string(), settings.clone());
+    nosql_connection.start(service_sdk::my_logger::LOGGER.clone()).await;
     let instruments_reader: Arc<MyNoSqlDataReaderTcp<InstrumentMappingEntity>> =
         nosql_connection.get_reader().await;
 
-    sleep(Duration::from_millis(5000));
-
     let settings_model = settings.get_settings().await;
-
-    let map_entity_option = instruments_reader
+    let mut map_entity_option = instruments_reader
         .get_entity(MAPPING_PK, settings_model.liquidity_provider_id.as_str())
         .await;
+
+    while map_entity_option.is_none() {
+        sleep(Duration::from_secs(2));
+        println!("Sleeping 2 seconds");
+        map_entity_option = instruments_reader
+        .get_entity(MAPPING_PK, settings_model.liquidity_provider_id.as_str())
+        .await;
+    }
+
+
     let mut map = HashMap::<String, Vec<String>>::new();
+
     if map_entity_option.is_some() {
         let map_entity = map_entity_option.unwrap();
         for (our_symbol, external_symbol) in map_entity.map.iter() {

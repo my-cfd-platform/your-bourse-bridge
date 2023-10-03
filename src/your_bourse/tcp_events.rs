@@ -28,6 +28,7 @@ impl FixMessageHandler {
         connection: &Arc<SocketConnection<FixMessage, FixMessageSerializer>>,
     ) {
         let maps = &self.map;
+        println!("Map: {:#?}", maps);
         let mut info_message = "Subscribing to ".to_owned();
         for (external_instrument, _) in maps {
             info_message.push_str(format!("{} ", external_instrument).as_str());
@@ -52,6 +53,7 @@ impl FixMessageHandler {
         let subscribe_message = FixMessage {
             message_type: FixMessageType::Logon,
         };
+
         connection.send(subscribe_message).await;
     }
 
@@ -152,7 +154,10 @@ impl FixMessageHandler {
 impl SocketEventCallback<FixMessage, FixMessageSerializer> for FixMessageHandler {
     async fn handle(&self, connection_event: ConnectionEvent<FixMessage, FixMessageSerializer>) {
         match connection_event {
-            ConnectionEvent::Connected(connection) => self.send_logon(&connection).await,
+            ConnectionEvent::Connected(connection) => {
+                println!("Connected log");
+                self.send_logon(&connection).await;
+            },
             ConnectionEvent::Disconnected(_) => println!("Disconnected from FIX-Feed"),
             ConnectionEvent::Payload {
                 connection,
@@ -161,6 +166,7 @@ impl SocketEventCallback<FixMessage, FixMessageSerializer> for FixMessageHandler
                 FixMessageType::Payload(data) => {
                     match data {
                         crate::FixPayload::Logon(_) => {
+                            println!("Got logon");
                             self.send_instrument_subscribe(&connection).await
                         }
                         crate::FixPayload::Reject(_) => {
