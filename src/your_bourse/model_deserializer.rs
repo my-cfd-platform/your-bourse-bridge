@@ -4,7 +4,7 @@ use service_sdk::my_logger::LogEventCtx;
 
 use super::YbMarketData;
 
-pub fn deserialize_market_data(fix_message: &FixMessageReader<'_>) -> YbMarketData {
+pub fn deserialize_market_data(fix_message: &FixMessageReader<'_>) -> Result<YbMarketData, String> {
     // there shall be always no_md_entries in the message
     // skip message if it's not exist
     let no_md_entries = fix_message.get_value("268").unwrap();
@@ -15,7 +15,7 @@ pub fn deserialize_market_data(fix_message: &FixMessageReader<'_>) -> YbMarketDa
             format!("268 tag not found: {}", fix_message.to_string()),
             LogEventCtx::new(),
         );
-        panic!("268 tag not found of message: {}", fix_message.to_string());
+        return Err("268 tag not found".to_string());
     }
     let no_md_entries = no_md_entries.unwrap().parse::<u32>().unwrap(); //.collect::<u32>().unwrap();
 
@@ -27,7 +27,7 @@ pub fn deserialize_market_data(fix_message: &FixMessageReader<'_>) -> YbMarketDa
             format!("Can not get md_entries: {}", fix_message.to_string()),
             LogEventCtx::new(),
         );
-        panic!("Can not get md_entries: {}", fix_message.to_string());
+        return Err("md_entries less than 2".to_string());
     }
     let prices = fix_message
         .get_values("270")
@@ -50,12 +50,14 @@ pub fn deserialize_market_data(fix_message: &FixMessageReader<'_>) -> YbMarketDa
     let nd = NaiveDateTime::parse_from_str(&datetime, "%Y%m%d-%H:%M:%S%.3f").unwrap();
     let date_time = DateTime::<Utc>::from_utc(nd, Utc);
 
-    YbMarketData {
+    let result = YbMarketData {
         instrument_id: external_market.to_string(),
         date: date_time,
         bid,
         ask,
-    }
+    };
+
+    Ok(result)
     //self.send_to_tcp(market, date_time, bid, ask).await;
 
     /*

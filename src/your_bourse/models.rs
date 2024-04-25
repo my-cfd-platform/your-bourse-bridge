@@ -27,6 +27,7 @@ pub enum YbFixContract {
     Ping,
     Pong,
     SubscribeToInstrument(String),
+    Skip(String),
 }
 
 impl YbFixContract {
@@ -37,7 +38,10 @@ impl YbFixContract {
             "A" => Self::Logon,
             "W" => {
                 let model = super::model_deserializer::deserialize_market_data(&fix_message_reader);
-                Self::MarketData(model)
+                match model {
+                    Ok(model) => Self::MarketData(model),
+                    Err(err) => Self::Skip(err),
+                }
             }
             "Y" => Self::MarketDataReject,
             "3" => Self::Reject,

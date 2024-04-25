@@ -150,6 +150,9 @@ impl SocketEventCallback<YbFixContract, FixMessageSerializer, YbTcpSate> for Fix
             YbFixContract::Ping => {}
             YbFixContract::Pong => {}
             YbFixContract::SubscribeToInstrument(_) => {}
+            YbFixContract::Skip(reason) => {
+                println!("Fixing Fix message: {}", reason);
+            }
         }
 
         /*
