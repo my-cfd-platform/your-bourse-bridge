@@ -43,6 +43,8 @@ impl YbFixContract {
                     Err(err) => Self::Skip(err),
                 }
             }
+            "V" => Self::Skip("Got V Message".to_string()),
+
             "Y" => Self::MarketDataReject,
             "3" => Self::Reject,
             "5" => Self::Logout,
