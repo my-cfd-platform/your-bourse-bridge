@@ -1,38 +1,29 @@
 use std::{env, net::SocketAddr, sync::Arc};
 
-use my_tcp_sockets::{tcp_connection::SocketConnection, TcpServer};
+use my_tcp_sockets::{tcp_connection::TcpSocketConnection, TcpServer};
 use rust_extensions::AppStates;
 use service_sdk::my_logger::LogEventCtx;
 
-use crate::{tcp::tcp_event_handler::PriceTcpServerCallback, AppContext, BidAskTcpSerializer};
+use crate::{
+    tcp::{tcp_event_handler::PriceTcpServerCallback, BidAskTcpSerializerFactor},
+    AppContext,
+};
 
-use super::models::BidAskTcpMessage;
+use super::{models::BidAskTcpMessage, BidAskTcpSerializer};
 
-pub type TcpConnection = SocketConnection<BidAskTcpMessage, BidAskTcpSerializer>;
+pub type TcpConnection = TcpSocketConnection<BidAskTcpMessage, BidAskTcpSerializer, ()>;
 
 pub struct PriceRouterTcpServer {
-    pub tcp_server: TcpServer<BidAskTcpMessage, BidAskTcpSerializer>,
+    pub tcp_server: TcpServer,
     pub app: Arc<AppContext>,
     pub app_states: Arc<AppStates>,
 }
 
 impl PriceRouterTcpServer {
-    pub fn new(
-        tcp_server: TcpServer<BidAskTcpMessage, BidAskTcpSerializer>,
-        app: Arc<AppContext>,
-        app_states: Arc<AppStates>,
-    ) -> Self {
-        Self {
-            tcp_server,
-            app,
-            app_states,
-        }
-    }
-
     pub async fn start(&self) {
         self.tcp_server
             .start(
-                Arc::new(BidAskTcpSerializer::new),
+                Arc::new(BidAskTcpSerializerFactor),
                 Arc::new(PriceTcpServerCallback::new(self.app.clone())),
                 self.app_states.clone(),
                 service_sdk::my_logger::LOGGER.clone(),
@@ -54,7 +45,7 @@ pub fn setup_price_tcp_server(
         }
         Err(_) => {}
     }
-    let tcp_server: TcpServer<BidAskTcpMessage, BidAskTcpSerializer> = TcpServer::new(
+    let tcp_server: TcpServer = TcpServer::new(
         "YourBoursePriceBridge".to_string(),
         SocketAddr::from(([0, 0, 0, 0], port)),
     );

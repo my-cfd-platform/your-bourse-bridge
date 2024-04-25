@@ -1,43 +1,35 @@
-use std::{collections::HashMap, env, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
-use chrono::{DateTime, NaiveDateTime, Utc};
-use my_tcp_sockets::{tcp_connection::SocketConnection, ConnectionEvent, SocketEventCallback};
+use my_tcp_sockets::{
+    tcp_connection::TcpSocketConnection, SocketEventCallback, TcpSerializerState,
+};
 use service_sdk::my_logger::LogEventCtx;
 
-use crate::{
-    AppContext, BidAskDataTcpModel, BidAskDateTimeTcpModel, BidAskTcpMessage, FixMessageType,
-    FixPayload,
-};
+use crate::{AppContext, FixSocketConnection};
 
-use super::{FixMessage, FixMessageSerializer};
+use super::{FixMessageSerializer, YbFixContract, YbTcpSate};
 
 pub struct FixMessageHandler {
     app: Arc<AppContext>,
-    map: HashMap<String, Vec<String>>,
+    maps: HashMap<String, Vec<String>>,
 }
 
 impl FixMessageHandler {
-    pub fn new(app: Arc<AppContext>, map: HashMap<String, Vec<String>>) -> Self {
-        Self { app, map }
+    pub async fn new(app: Arc<AppContext>) -> Self {
+        let maps = app.get_map().await;
+        Self { app, maps }
     }
 }
 
 impl FixMessageHandler {
-    async fn send_instrument_subscribe(
-        &self,
-        connection: &Arc<SocketConnection<FixMessage, FixMessageSerializer>>,
-    ) {
-        let maps = &self.map;
-        println!("Map: {:#?}", maps);
+    async fn send_instrument_subscribe(&self, connection: &Arc<FixSocketConnection>) {
+        println!("Map: {:#?}", self.maps);
         let mut info_message = "Subscribing to ".to_owned();
-        for (external_instrument, _) in maps {
+        for external_instrument in self.maps.keys() {
             info_message.push_str(format!("{} ", external_instrument).as_str());
-            let subscribe_message = FixMessage {
-                message_type: FixMessageType::SubscribeToInstrument(
-                    external_instrument.to_string(),
-                ),
-            };
-            connection.send(subscribe_message).await;
+            let subscribe_message =
+                YbFixContract::SubscribeToInstrument(external_instrument.to_string());
+            connection.send(&subscribe_message).await;
         }
 
         service_sdk::my_logger::LOGGER.write_info(
@@ -46,17 +38,8 @@ impl FixMessageHandler {
             LogEventCtx::new(),
         );
     }
-    async fn send_logon(
-        &self,
-        connection: &Arc<SocketConnection<FixMessage, FixMessageSerializer>>,
-    ) {
-        let subscribe_message = FixMessage {
-            message_type: FixMessageType::Logon,
-        };
 
-        connection.send(subscribe_message).await;
-    }
-
+    /*
     async fn handle_price_tick_message(&self, fix_message: FixPayload) {
         if let FixPayload::MarketData(message) = fix_message {
             // there shall be always no_md_entries in the message
@@ -129,76 +112,92 @@ impl FixMessageHandler {
             */
         }
     }
-    async fn send_to_tcp(&self, market: String, time: DateTime<Utc>, bid: f64, ask: f64) {
-        let tcp_datetime = BidAskDateTimeTcpModel::Source(time);
-        //let bid = bid.as_str().parse::<f64>().unwrap();
-        //let ask = ask.as_str().parse::<f64>().unwrap();
-        let tcp_message = BidAskDataTcpModel {
-            exchange_id: "YOUR_BOURSE".to_string(),
-            instrument_id: market,
-            bid,
-            ask,
-            volume: 0.0,
-            datetime: tcp_datetime,
-        };
-
-        for connection in self.app.connections.lock().await.values() {
-            connection
-                .send(BidAskTcpMessage::BidAsk(tcp_message.clone()))
-                .await;
-        }
-    }
+     */
 }
 
 #[async_trait::async_trait]
-impl SocketEventCallback<FixMessage, FixMessageSerializer> for FixMessageHandler {
-    async fn handle(&self, connection_event: ConnectionEvent<FixMessage, FixMessageSerializer>) {
-        match connection_event {
-            ConnectionEvent::Connected(connection) => {
-                println!("Connected log");
-                self.send_logon(&connection).await;
-            },
-            ConnectionEvent::Disconnected(_) => println!("Disconnected from FIX-Feed"),
-            ConnectionEvent::Payload {
-                connection,
-                payload,
-            } => match payload.message_type {
-                FixMessageType::Payload(data) => {
-                    match data {
-                        crate::FixPayload::Logon(_) => {
-                            println!("Got logon");
-                            self.send_instrument_subscribe(&connection).await
-                        }
-                        crate::FixPayload::Reject(_) => {
-                            println!("Rejected by FIX-Feed");
-                        }
-                        crate::FixPayload::Logout(_) => {
-                            println!("Logged out from FIX-Feed");
-                        }
-                        crate::FixPayload::MarketData(_) => {
-                            self.handle_price_tick_message(data).await
-                        }
-                        crate::FixPayload::MarketDataReject(message) => {
-                            service_sdk::my_logger::LOGGER.write_error(
+impl SocketEventCallback<YbFixContract, FixMessageSerializer, YbTcpSate> for FixMessageHandler {
+    async fn connected(
+        &self,
+        connection: Arc<TcpSocketConnection<YbFixContract, FixMessageSerializer, YbTcpSate>>,
+    ) {
+        println!("Connected log");
+        connection.send(&YbFixContract::Logon).await;
+    }
+
+    async fn disconnected(
+        &self,
+        _connection: Arc<TcpSocketConnection<YbFixContract, FixMessageSerializer, YbTcpSate>>,
+    ) {
+        println!("Disconnected from FIX-Feed");
+    }
+
+    async fn payload(
+        &self,
+        connection: &Arc<TcpSocketConnection<YbFixContract, FixMessageSerializer, YbTcpSate>>,
+        contract: YbFixContract,
+    ) {
+        match contract {
+            YbFixContract::Logon => {
+                self.send_instrument_subscribe(&connection).await;
+            }
+            YbFixContract::Reject => {}
+            YbFixContract::Logout => {}
+            YbFixContract::MarketData(market_data) => {
+                self.app.broad_cast_bid_ask(market_data, &self.maps).await;
+            }
+            YbFixContract::MarketDataReject => {}
+            YbFixContract::Others => {}
+            YbFixContract::Ping => {}
+            YbFixContract::Pong => {}
+            YbFixContract::SubscribeToInstrument(_) => {}
+        }
+
+        /*
+        match contract.message_type {
+            FixMessageType::Payload(data) => {
+                match data {
+                    FixPayload::Logon(_) => {
+                        println!("Got logon");
+                        self.send_instrument_subscribe(&connection).await
+                    }
+                    FixPayload::Reject(_) => {
+                        println!("Rejected by FIX-Feed");
+                    }
+                    FixPayload::Logout(_) => {
+                        println!("Logged out from FIX-Feed");
+                    }
+                    FixPayload::MarketData(_) => self.handle_price_tick_message(data).await,
+                    FixPayload::MarketDataReject(message) => {
+                        service_sdk::my_logger::LOGGER.write_error(
+                            String::from("FixMessageHandler"),
+                            format!("Market Data Rejected: {}", message.to_string()),
+                            LogEventCtx::new(),
+                        );
+                    }
+                    FixPayload::Others(_message) => match env::var("FIX_DEBUG") {
+                        Ok(_) => {
+                            service_sdk::my_logger::LOGGER.write_info(
                                 String::from("FixMessageHandler"),
-                                format!("Market Data Rejected: {}", message.to_string()),
+                                format!("Other Message: {}", _message.to_string()),
                                 LogEventCtx::new(),
                             );
                         }
-                        crate::FixPayload::Others(_message) => match env::var("FIX_DEBUG") {
-                            Ok(_) => {
-                                service_sdk::my_logger::LOGGER.write_info(
-                                    String::from("FixMessageHandler"),
-                                    format!("Other Message: {}", _message.to_string()),
-                                    LogEventCtx::new(),
-                                );
-                            }
-                            Err(_) => {}
-                        },
-                    };
-                }
-                _ => {}
-            },
+                        Err(_) => {}
+                    },
+                };
+            }
+            _ => {}
         }
+
+         */
     }
+}
+
+impl TcpSerializerState<YbFixContract> for () {
+    fn is_tcp_contract_related_to_metadata(&self, _: &YbFixContract) -> bool {
+        false
+    }
+
+    fn apply_tcp_contract(&mut self, _: &YbFixContract) {}
 }

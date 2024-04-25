@@ -1,0 +1,79 @@
+use chrono::{DateTime, NaiveDateTime, Utc};
+use rust_fix::FixMessageReader;
+use service_sdk::my_logger::LogEventCtx;
+
+use super::YbMarketData;
+
+pub fn deserialize_market_data(fix_message: &FixMessageReader<'_>) -> YbMarketData {
+    // there shall be always no_md_entries in the message
+    // skip message if it's not exist
+    let no_md_entries = fix_message.get_value("268").unwrap();
+
+    if no_md_entries == None {
+        service_sdk::my_logger::LOGGER.write_error(
+            String::from("FixMessageHandler"),
+            format!("268 tag not found: {}", fix_message.to_string()),
+            LogEventCtx::new(),
+        );
+        panic!("268 tag not found of message: {}", fix_message.to_string());
+    }
+    let no_md_entries = no_md_entries.unwrap().parse::<u32>().unwrap(); //.collect::<u32>().unwrap();
+
+    // not sure why buy sometimes there are no prices available in the message,
+    // so we skip the message
+    if no_md_entries < 2 {
+        service_sdk::my_logger::LOGGER.write_error(
+            String::from("FixMessageHandler"),
+            format!("Can not get md_entries: {}", fix_message.to_string()),
+            LogEventCtx::new(),
+        );
+        panic!("Can not get md_entries: {}", fix_message.to_string());
+    }
+    let prices = fix_message
+        .get_values("270")
+        .unwrap()
+        .iter()
+        .map(|x| x.parse::<f64>().unwrap())
+        .collect::<Vec<f64>>();
+
+    // I think the clients have to know that we do like this,
+    // this may be a regulatory issue for them if they not aware
+    //let (bid, ask) = match prices[1] > prices[0] {
+    //    true => (prices[0], prices[1]),
+    //    false => (prices[1], prices[0]),
+    //};
+
+    let (bid, ask) = (prices[0], prices[1]);
+
+    let external_market = fix_message.get_value("55").unwrap().unwrap();
+    let datetime = fix_message.get_value("52").unwrap().unwrap();
+    let nd = NaiveDateTime::parse_from_str(&datetime, "%Y%m%d-%H:%M:%S%.3f").unwrap();
+    let date_time = DateTime::<Utc>::from_utc(nd, Utc);
+
+    YbMarketData {
+        instrument_id: external_market.to_string(),
+        date: date_time,
+        bid,
+        ask,
+    }
+    //self.send_to_tcp(market, date_time, bid, ask).await;
+
+    /*
+
+    let tcp_datetime = BidAskDateTimeTcpModel::Source(date_time);
+
+    let tcp_message = BidAskDataTcpModel {
+        exchange_id: "YOUR_BOURSE".to_string(),
+        instrument_id: id,
+        bid,
+        ask,
+        volume: 0.0,
+        datetime: tcp_datetime,
+    };
+    for connection in self.app.connections.lock().await.values() {
+        connection
+            .send(BidAskTcpMessage::BidAsk(tcp_message.clone()))
+            .await;
+    }
+    */
+}
