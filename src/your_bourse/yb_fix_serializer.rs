@@ -92,6 +92,10 @@ impl TcpSocketSerializer<YbFixContract, YbTcpSate> for FixMessageSerializer {
             }
         };
 
+        if std::env::var("DEBUG_FIX").is_ok() {
+            println!("Out Fix Message: {:?}", fix_message_writer.to_string());
+        }
+
         out.write_slice(fix_message_writer.compile_message().as_slice());
     }
 

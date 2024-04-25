@@ -1,3 +1,5 @@
+use std::env;
+
 use chrono::{DateTime, Utc};
 use my_tcp_sockets::TcpContract;
 use rust_fix::FixMessageReader;
@@ -33,6 +35,10 @@ pub enum YbFixContract {
 impl YbFixContract {
     pub fn deserialize(fix_payload: Vec<u8>) -> Self {
         let fix_message_reader = FixMessageReader::from_bytes(&fix_payload);
+
+        if std::env::var("DEBUG_FIX").is_ok() {
+            println!("In  Fix Message: {:?}", fix_message_reader.to_string());
+        }
 
         match fix_message_reader.get_message_type().unwrap() {
             "A" => Self::Logon,
