@@ -111,18 +111,28 @@ impl AppContext {
 impl TcpClientSocketSettings for AppContext {
     async fn get_host_port(&self) -> Option<String> {
         let liquidity_provider_id = self.settings.get_liquidity_provider_id().await;
+
         let map_entity = self
             .instrument_mapping
             .get_entity(MAPPING_PK, liquidity_provider_id.as_str())
             .await;
 
         if map_entity.is_none() {
+            println!("There is no Map configuration. Skipping connection to Fix YourBourse.");
             return None;
         }
 
         let result: Option<YbPriceFeedSettings> = self.get_yb_settings().await;
 
-        let result = result?;
+        if result.is_none() {
+            println!(
+                "There is no Yb Fix connection product configuration. Skipping connection to Fix YourBourse."
+            );
+            return None;
+        }
+
+        let result = result.unwrap();
+        println!("There is configuration. Url: {}", result.url);
 
         Some(result.url.clone())
     }
