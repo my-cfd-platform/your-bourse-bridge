@@ -8,15 +8,17 @@ use tokio::sync::Mutex;
 
 use crate::{
     settings::SettingsReader,
-    tcp::{BidAskDataTcpModel, BidAskDateTimeTcpModel, BidAskTcpMessage, TcpConnection},
+    tcp::{BidAskDataTcpModel, BidAskDateTimeTcpModel, BidAskTcpMessage},
     your_bourse::YbMarketData,
 };
+
+use super::BroadCastData;
 
 const MAPPING_PK: &str = "im";
 
 pub struct AppContext {
     pub settings: Arc<SettingsReader>,
-    pub connections: Mutex<HashMap<i32, Arc<TcpConnection>>>,
+    pub broadcast_data: Mutex<BroadCastData>,
     //pub tcp_client: TcpClient,
     pub product_settings: Arc<MyNoSqlDataReaderTcp<ProductSettings>>,
     pub instrument_mapping: Arc<MyNoSqlDataReaderTcp<InstrumentMappingEntity>>,
@@ -33,7 +35,7 @@ impl AppContext {
 
         AppContext {
             settings,
-            connections: Mutex::new(HashMap::new()),
+            broadcast_data: Mutex::new(BroadCastData::new()),
             product_settings: service_content.get_ns_reader().await,
             instrument_mapping: service_content.get_ns_reader().await,
             tcp_client: Mutex::new(None),
@@ -44,12 +46,10 @@ impl AppContext {
         self.product_settings.get_enum_case_model().await
     }
 
-    pub async fn broad_cast_bid_ask(
-        &self,
-        market_data: YbMarketData,
-        maps: &HashMap<String, Vec<String>>,
-    ) {
-        let map = maps.get(market_data.instrument_id.as_str());
+    pub async fn broad_cast_bid_ask(&self, market_data: YbMarketData) {
+        let broadcast_data = self.broadcast_data.lock().await;
+
+        let map = broadcast_data.maps.get(market_data.instrument_id.as_str());
 
         if map.is_none() {
             return;
@@ -60,8 +60,6 @@ impl AppContext {
         if map.len() == 0 {
             return;
         }
-
-        let connections = self.connections.lock().await;
 
         for instrument_id in map {
             let tcp_datetime = BidAskDateTimeTcpModel::Source(market_data.date);
@@ -77,7 +75,7 @@ impl AppContext {
 
             let to_send = BidAskTcpMessage::BidAsk(tcp_message);
 
-            for connection in connections.values() {
+            for connection in broadcast_data.connections.values() {
                 connection.send(&to_send).await;
             }
         }
@@ -101,6 +99,9 @@ impl AppContext {
                 .unwrap()
                 .push(our_symbol.to_string());
         }
+
+        let mut lock_map = self.broadcast_data.lock().await;
+        lock_map.maps = map.clone();
 
         map
     }

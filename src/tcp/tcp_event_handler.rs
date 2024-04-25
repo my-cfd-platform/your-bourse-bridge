@@ -22,22 +22,22 @@ impl PriceTcpServerCallback {
 #[async_trait::async_trait]
 impl SocketEventCallback<BidAskTcpMessage, BidAskTcpSerializer, ()> for PriceTcpServerCallback {
     async fn connected(&self, connection: Arc<BidAskTcpSocketConnection>) {
-        let mut write_access = self.app.connections.lock().await;
+        let mut write_access = self.app.broadcast_data.lock().await;
         service_sdk::my_logger::LOGGER.write_info(
             String::from("PriceTcpServerCallback"),
             format!("New connection {}", connection.id),
             LogEventCtx::new(),
         );
 
-        write_access.insert(connection.id, connection);
+        write_access.connections.insert(connection.id, connection);
     }
 
     async fn disconnected(
         &self,
         connection: Arc<TcpSocketConnection<BidAskTcpMessage, BidAskTcpSerializer, ()>>,
     ) {
-        let mut write_access = self.app.connections.lock().await;
-        write_access.remove(&connection.id);
+        let mut write_access = self.app.broadcast_data.lock().await;
+        write_access.connections.remove(&connection.id);
         service_sdk::my_logger::LOGGER.write_info(
             String::from("PriceTcpServerCallback"),
             format!("Disconnected {}", connection.id),

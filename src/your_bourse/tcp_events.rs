@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use my_tcp_sockets::{
     tcp_connection::TcpSocketConnection, SocketEventCallback, TcpSerializerState,
@@ -11,21 +11,20 @@ use super::{FixMessageSerializer, YbFixContract, YbTcpSate};
 
 pub struct FixMessageHandler {
     app: Arc<AppContext>,
-    maps: HashMap<String, Vec<String>>,
 }
 
 impl FixMessageHandler {
     pub async fn new(app: Arc<AppContext>) -> Self {
-        let maps = app.get_map().await;
-        Self { app, maps }
+        Self { app }
     }
 }
 
 impl FixMessageHandler {
     async fn send_instrument_subscribe(&self, connection: &Arc<FixSocketConnection>) {
-        println!("Map: {:#?}", self.maps);
+        let maps = self.app.get_map().await;
+        println!("Map: {:#?}", maps);
         let mut info_message = "Subscribing to ".to_owned();
-        for external_instrument in self.maps.keys() {
+        for external_instrument in maps.keys() {
             info_message.push_str(format!("{} ", external_instrument).as_str());
             let subscribe_message =
                 YbFixContract::SubscribeToInstrument(external_instrument.to_string());
@@ -144,7 +143,7 @@ impl SocketEventCallback<YbFixContract, FixMessageSerializer, YbTcpSate> for Fix
             YbFixContract::Reject => {}
             YbFixContract::Logout => {}
             YbFixContract::MarketData(market_data) => {
-                self.app.broad_cast_bid_ask(market_data, &self.maps).await;
+                self.app.broad_cast_bid_ask(market_data).await;
             }
             YbFixContract::MarketDataReject => {}
             YbFixContract::Others => {}
