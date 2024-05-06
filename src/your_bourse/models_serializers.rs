@@ -1,5 +1,6 @@
 use chrono::Utc;
 use my_nosql_contracts::YbPriceFeedSettings;
+use rust_extensions::date_time::DateTimeAsMicroseconds;
 use rust_fix::FixMessageWriter;
 
 const OUR_FIX_VERSION: &'static str = "FIX.4.4";
@@ -40,11 +41,11 @@ pub fn serialize_instrument_subscribe(
     count: u64,
     instrument: &str,
 ) -> FixMessageWriter {
-    let date = Utc::now();
-    let date_string = date.format("%Y%m%d-%H:%M:%S.%3f").to_string();
+    let now = DateTimeAsMicroseconds::now();
+    let date_string = crate::date_utils::to_fix_date_string(now);
 
     let mut fix_builder = FixMessageWriter::new(OUR_FIX_VERSION, "V");
-    let uuid = chrono::Utc::now().timestamp_nanos().to_string();
+    let uuid = now.unix_microseconds;
 
     fix_builder.with_value("49", &settings.sender_company_id);
     fix_builder.with_value("52", date_string.as_str());

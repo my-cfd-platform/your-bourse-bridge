@@ -70,7 +70,7 @@ impl AppContext {
                 bid: market_data.bid,
                 ask: market_data.ask,
                 volume: 0.0,
-                datetime: tcp_datetime,
+                date_time: tcp_datetime,
             };
 
             let to_send = BidAskTcpMessage::BidAsk(tcp_message);

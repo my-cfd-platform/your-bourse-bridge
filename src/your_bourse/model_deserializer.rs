@@ -1,4 +1,3 @@
-use chrono::{DateTime, NaiveDateTime, Utc};
 use rust_fix::FixMessageReader;
 use service_sdk::my_logger::LogEventCtx;
 
@@ -46,13 +45,11 @@ pub fn deserialize_market_data(fix_message: &FixMessageReader<'_>) -> Result<YbM
     let (bid, ask) = (prices[0], prices[1]);
 
     let external_market = fix_message.get_value("55").unwrap().unwrap();
-    let datetime = fix_message.get_value("52").unwrap().unwrap();
-    let nd = NaiveDateTime::parse_from_str(&datetime, "%Y%m%d-%H:%M:%S%.3f").unwrap();
-    let date_time = DateTime::<Utc>::from_utc(nd, Utc);
+    let date_time = fix_message.get_value("52").unwrap().unwrap();
 
     let result = YbMarketData {
         instrument_id: external_market.to_string(),
-        date: date_time,
+        date: crate::date_utils::parse_fix_date(date_time),
         bid,
         ask,
     };

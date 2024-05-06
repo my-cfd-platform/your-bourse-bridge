@@ -1,5 +1,5 @@
 mod app;
-mod nosql;
+mod date_utils;
 mod settings;
 mod tcp;
 mod your_bourse;
@@ -40,8 +40,6 @@ async fn main() {
             service_sdk::my_logger::LOGGER.clone(),
         )
         .await;
-
-    // setup_and_start(&app_context, &service_context).await; todo!("Restore it")
 
     service_context.start_application().await;
 }

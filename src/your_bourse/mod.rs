@@ -1,8 +1,8 @@
+mod fix_models;
 mod fix_tcp_events;
-mod models;
 mod yb_fix_serializer;
 
-pub use models::*;
+pub use fix_models::*;
 pub use yb_fix_serializer::*;
 mod models_serializers;
 mod yb_tcp_state;

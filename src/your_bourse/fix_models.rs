@@ -1,7 +1,5 @@
-use std::env;
-
-use chrono::{DateTime, Utc};
 use my_tcp_sockets::TcpContract;
+use rust_extensions::date_time::DateTimeAsMicroseconds;
 use rust_fix::FixMessageReader;
 
 #[derive(Debug, Clone)]
@@ -13,7 +11,7 @@ pub struct LogonCredentials {
 #[derive(Debug)]
 pub struct YbMarketData {
     pub instrument_id: String,
-    pub date: DateTime<Utc>,
+    pub date: DateTimeAsMicroseconds,
     pub bid: f64,
     pub ask: f64,
 }
