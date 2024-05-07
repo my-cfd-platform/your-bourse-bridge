@@ -53,6 +53,7 @@ impl SocketEventCallback<BidAskTcpMessage, BidAskTcpSerializer, ()> for PriceTcp
         payload: BidAskTcpMessage,
     ) {
         if payload.is_ping() {
+            println!("Received ping from {:?}", connection.addr);
             connection.send(&BidAskTcpMessage::Pong).await;
         }
     }
