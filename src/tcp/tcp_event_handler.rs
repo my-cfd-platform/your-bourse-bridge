@@ -21,7 +21,10 @@ impl SocketEventCallback<BidAskTcpMessage, BidAskTcpSerializer, ()> for PriceTcp
     async fn connected(&self, connection: Arc<BidAskTcpSocketConnection>) {
         service_sdk::my_logger::LOGGER.write_info(
             String::from("PriceTcpServerCallback"),
-            format!("New connection {}", connection.id),
+            format!(
+                "New connection {}. Addr: {:?}",
+                connection.id, connection.addr
+            ),
             LogEventCtx::new(),
         );
         let mut write_access = self.app.broadcast_data.lock().await;
@@ -34,7 +37,10 @@ impl SocketEventCallback<BidAskTcpMessage, BidAskTcpSerializer, ()> for PriceTcp
     ) {
         service_sdk::my_logger::LOGGER.write_info(
             String::from("PriceTcpServerCallback"),
-            format!("Disconnected {}", connection.id),
+            format!(
+                "Disconnected {}. Addr: {:?}",
+                connection.id, connection.addr
+            ),
             LogEventCtx::new(),
         );
         let mut write_access = self.app.broadcast_data.lock().await;
