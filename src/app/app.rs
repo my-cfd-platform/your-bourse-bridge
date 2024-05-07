@@ -3,14 +3,11 @@ use std::{collections::HashMap, sync::Arc};
 use my_nosql_contracts::{InstrumentMappingEntity, ProductSettings, YbPriceFeedSettings};
 
 use my_tcp_sockets::{TcpClient, TcpClientSocketSettings};
+use prices_tcp_contracts::*;
 use service_sdk::{my_no_sql_sdk::reader::MyNoSqlDataReaderTcp, ServiceContext};
 use tokio::sync::Mutex;
 
-use crate::{
-    settings::SettingsReader,
-    tcp::{BidAskDataTcpModel, BidAskDateTimeTcpModel, BidAskTcpMessage},
-    your_bourse::YbMarketData,
-};
+use crate::{settings::SettingsReader, your_bourse::YbMarketData};
 
 use super::BroadCastData;
 

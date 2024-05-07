@@ -3,11 +3,11 @@ mod date_utils;
 mod settings;
 mod tcp;
 mod your_bourse;
-
 use std::sync::Arc;
 
 use my_tcp_sockets::{tcp_connection::TcpSocketConnection, TcpClient};
-use tcp::{BidAskTcpMessage, BidAskTcpSerializer};
+
+use prices_tcp_contracts::{BidAskTcpMessage, BidAskTcpSerializer};
 use your_bourse::{
     FixMessageHandler, FixMessageSerializer, YbFixContract, YbSerializerFactory, YbTcpSate,
 };

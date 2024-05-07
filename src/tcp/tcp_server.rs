@@ -1,17 +1,11 @@
 use std::{env, net::SocketAddr, sync::Arc};
 
-use my_tcp_sockets::{tcp_connection::TcpSocketConnection, TcpServer};
+use my_tcp_sockets::TcpServer;
+use prices_tcp_contracts::TcpFeedSerializerFactory;
 use rust_extensions::AppStates;
 use service_sdk::my_logger::LogEventCtx;
 
-use crate::{
-    tcp::{tcp_event_handler::PriceTcpServerCallback, BidAskTcpSerializerFactor},
-    AppContext,
-};
-
-use super::{models::BidAskTcpMessage, BidAskTcpSerializer};
-
-pub type TcpConnection = TcpSocketConnection<BidAskTcpMessage, BidAskTcpSerializer, ()>;
+use crate::{tcp::tcp_event_handler::PriceTcpServerCallback, AppContext};
 
 pub struct PriceRouterTcpServer {
     pub tcp_server: TcpServer,
@@ -23,7 +17,7 @@ impl PriceRouterTcpServer {
     pub async fn start(&self) {
         self.tcp_server
             .start(
-                Arc::new(BidAskTcpSerializerFactor),
+                Arc::new(TcpFeedSerializerFactory),
                 Arc::new(PriceTcpServerCallback::new(self.app.clone())),
                 self.app_states.clone(),
                 service_sdk::my_logger::LOGGER.clone(),

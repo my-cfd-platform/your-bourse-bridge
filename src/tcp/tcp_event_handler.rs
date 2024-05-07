@@ -1,13 +1,10 @@
 use std::sync::Arc;
 
-use my_tcp_sockets::{
-    tcp_connection::TcpSocketConnection, SocketEventCallback, TcpSerializerState,
-};
+use my_tcp_sockets::{tcp_connection::TcpSocketConnection, SocketEventCallback};
+use prices_tcp_contracts::*;
 use service_sdk::my_logger::LogEventCtx;
 
-use crate::{tcp::models::BidAskTcpMessage, AppContext, BidAskTcpSocketConnection};
-
-use super::BidAskTcpSerializer;
+use crate::{app::AppContext, BidAskTcpSocketConnection};
 
 pub struct PriceTcpServerCallback {
     pub app: Arc<AppContext>,
@@ -54,12 +51,4 @@ impl SocketEventCallback<BidAskTcpMessage, BidAskTcpSerializer, ()> for PriceTcp
             connection.send(&BidAskTcpMessage::Pong).await;
         }
     }
-}
-
-impl TcpSerializerState<BidAskTcpMessage> for () {
-    fn is_tcp_contract_related_to_metadata(&self, _: &BidAskTcpMessage) -> bool {
-        false
-    }
-
-    fn apply_tcp_contract(&mut self, _: &BidAskTcpMessage) {}
 }

@@ -19,33 +19,12 @@ pub fn parse_fix_date(date: &str) -> DateTimeAsMicroseconds {
     DateTimeAsMicroseconds::create(year, month, day, hour, min, sec, micros * 1000)
 }
 
-pub fn parse_tcp_feed_date(date: &[u8]) -> DateTimeAsMicroseconds {
-    let year = parse_number_from_slice(date, &date[0..4]);
-    let month = parse_number_from_slice(date, &date[4..6]);
-    let day = parse_number_from_slice(date, &date[6..8]);
-    let hour = parse_number_from_slice(date, &date[8..10]);
-    let min = parse_number_from_slice(date, &date[10..12]);
-    let sec = parse_number_from_slice(date, &date[12..14]);
-    let micros: i64 = parse_number_from_slice(date, &date[15..18]);
-
-    DateTimeAsMicroseconds::create(year, month, day, hour, min, sec, micros * 1000)
-}
-
 fn parse_number<TResult: FromStr + Debug>(date: &str, src: &str) -> TResult {
     match src.parse() {
         Ok(result) => result,
         Err(_) => {
             panic!("Unknown Date format: '{}'", date);
         }
-    }
-}
-
-fn parse_number_from_slice<TResult: FromStr + Debug>(date: &[u8], src: &[u8]) -> TResult {
-    unsafe {
-        parse_number(
-            std::str::from_utf8_unchecked(date),
-            std::str::from_utf8_unchecked(src),
-        )
     }
 }
 

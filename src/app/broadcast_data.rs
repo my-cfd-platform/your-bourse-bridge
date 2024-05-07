@@ -1,10 +1,10 @@
 use std::{collections::HashMap, sync::Arc};
 
-use crate::tcp::TcpConnection;
+use crate::BidAskTcpSocketConnection;
 
 pub struct BroadCastData {
     pub maps: HashMap<String, Vec<String>>,
-    pub connections: HashMap<i32, Arc<TcpConnection>>,
+    pub connections: HashMap<i32, Arc<BidAskTcpSocketConnection>>,
 }
 
 impl BroadCastData {
