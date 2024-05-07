@@ -3,15 +3,12 @@ use std::{collections::HashMap, sync::Arc};
 use my_nosql_contracts::{InstrumentMappingEntity, ProductSettings, YbPriceFeedSettings};
 
 use my_tcp_sockets::{TcpClient, TcpClientSocketSettings};
-use prices_tcp_contracts::*;
 use service_sdk::{my_no_sql_sdk::reader::MyNoSqlDataReaderTcp, ServiceContext};
 use tokio::sync::Mutex;
 
 use crate::{settings::SettingsReader, your_bourse::YbMarketData};
 
 use super::BroadCastData;
-
-const MAPPING_PK: &str = "im";
 
 pub struct AppContext {
     pub settings: Arc<SettingsReader>,
@@ -53,7 +50,10 @@ impl AppContext {
         let liquidity_provider_id = self.settings.get_liquidity_provider_id().await;
         let map_entity = self
             .instrument_mapping
-            .get_entity(MAPPING_PK, liquidity_provider_id.as_str())
+            .get_entity(
+                InstrumentMappingEntity::PARTITION_KEY,
+                liquidity_provider_id.as_str(),
+            )
             .await
             .unwrap();
 
@@ -82,7 +82,10 @@ impl TcpClientSocketSettings for AppContext {
 
         let map_entity = self
             .instrument_mapping
-            .get_entity(MAPPING_PK, liquidity_provider_id.as_str())
+            .get_entity(
+                InstrumentMappingEntity::PARTITION_KEY,
+                liquidity_provider_id.as_str(),
+            )
             .await;
 
         if map_entity.is_none() {
