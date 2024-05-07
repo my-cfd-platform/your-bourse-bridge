@@ -31,7 +31,7 @@ async fn main() {
 
     tcp_server.start().await;
 
-    let tcp_client = TcpClient::new("yourbourse - fix-client".to_string(), app_context.clone());
+    let tcp_client = TcpClient::new("Yb-fix-client".to_string(), app_context.clone());
 
     tcp_client
         .start(

@@ -30,9 +30,10 @@ impl AppContext {
     ) -> AppContext {
         //  let tcp_client = TcpClient::new("yourbourse - fix-client".to_string(), settings.clone());
 
+        let lp_id = settings.get_liquidity_provider_id().await;
         AppContext {
             settings,
-            broadcast_data: Mutex::new(BroadCastData::new()),
+            broadcast_data: Mutex::new(BroadCastData::new(lp_id)),
             product_settings: service_content.get_ns_reader().await,
             instrument_mapping: service_content.get_ns_reader().await,
             tcp_client: Mutex::new(None),
@@ -45,37 +46,7 @@ impl AppContext {
 
     pub async fn broad_cast_bid_ask(&self, market_data: YbMarketData) {
         let broadcast_data = self.broadcast_data.lock().await;
-
-        let map = broadcast_data.maps.get(market_data.instrument_id.as_str());
-
-        if map.is_none() {
-            return;
-        }
-
-        let map = map.unwrap();
-
-        if map.len() == 0 {
-            return;
-        }
-
-        for instrument_id in map {
-            let tcp_datetime = BidAskDateTimeTcpModel::Source(market_data.date);
-
-            let tcp_message = BidAskDataTcpModel {
-                exchange_id: "YOUR_BOURSE".to_string(),
-                instrument_id: instrument_id.to_string(),
-                bid: market_data.bid,
-                ask: market_data.ask,
-                volume: 0.0,
-                date_time: tcp_datetime,
-            };
-
-            let to_send = BidAskTcpMessage::BidAsk(tcp_message);
-
-            for connection in broadcast_data.connections.values() {
-                connection.send(&to_send).await;
-            }
-        }
+        broadcast_data.broad_cast_bid_ask(market_data).await;
     }
 
     pub async fn get_map(&self) -> HashMap<String, Vec<String>> {
