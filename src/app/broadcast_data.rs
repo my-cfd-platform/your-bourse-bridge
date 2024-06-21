@@ -19,17 +19,17 @@ impl BroadCastData {
         }
     }
 
-    pub async fn broad_cast_bid_ask(&self, market_data: YbMarketData) {
+    pub async fn broad_cast_bid_ask(&self, market_data: &YbMarketData) -> Option<Vec<String>> {
         let map = self.maps.get(market_data.instrument_id.as_str());
 
         if map.is_none() {
-            return;
+            return None;
         }
 
         let map = map.unwrap();
 
         if map.len() == 0 {
-            return;
+            return None;
         }
 
         for instrument_id in map {
@@ -50,5 +50,7 @@ impl BroadCastData {
                 connection.send(&to_send).await;
             }
         }
+
+        Some(map.to_vec())
     }
 }

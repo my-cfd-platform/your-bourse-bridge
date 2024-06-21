@@ -2,12 +2,6 @@ use my_tcp_sockets::TcpContract;
 use rust_extensions::date_time::DateTimeAsMicroseconds;
 use rust_fix::FixMessageReader;
 
-#[derive(Debug, Clone)]
-pub struct LogonCredentials {
-    pub password: String,
-    pub sender: String,
-    pub target: String,
-}
 #[derive(Debug)]
 pub struct YbMarketData {
     pub instrument_id: String,

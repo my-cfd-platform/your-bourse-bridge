@@ -12,13 +12,10 @@ service_sdk::macros::use_settings!();
 )]
 pub struct SettingsModel {
     pub seq_conn_string: String,
-    //    pub your_bourse_url: String,
-    //    pub your_bourse_pass: String,
-    //    pub your_bourse_sender_company_id: String,
-    //    pub your_bourse_target_company_id: String,
     pub my_no_sql_tcp_reader: String,
     pub liquidity_provider_id: String,
     pub my_telemetry: String,
+    pub my_no_sql_writer: String,
 }
 
 impl SettingsReader {

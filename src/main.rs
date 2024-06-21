@@ -3,11 +3,13 @@ mod date_utils;
 mod settings;
 mod tcp;
 mod your_bourse;
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
+mod timers;
 
 use my_tcp_sockets::{tcp_connection::TcpSocketConnection, TcpClient};
 
 use prices_tcp_contracts::{BidAskTcpMessage, BidAskTcpSerializer};
+use timers::UploadSrcPricesTimer;
 use your_bourse::{
     FixMessageHandler, FixMessageSerializer, YbFixContract, YbSerializerFactory, YbTcpSate,
 };
@@ -25,6 +27,13 @@ async fn main() {
     let mut service_context = service_sdk::ServiceContext::new(settings_reader.clone()).await;
 
     let app_context = Arc::new(AppContext::new(settings_reader, &service_context).await);
+
+    service_context.register_timer(Duration::from_secs(1), |timer| {
+        timer.register_timer(
+            "PriceSrc Uploader",
+            Arc::new(UploadSrcPricesTimer::new(app_context.clone())),
+        );
+    });
 
     let tcp_server =
         crate::tcp::setup_price_tcp_server(&app_context, service_context.app_states.clone());

@@ -1,23 +1,32 @@
 use std::{collections::HashMap, sync::Arc};
 
-use my_nosql_contracts::{InstrumentMappingEntity, ProductSettings, YbPriceFeedSettings};
+use my_nosql_contracts::{
+    price_src::BidAskPriceSrc, InstrumentMappingEntity, ProductSettings, YbPriceFeedSettings,
+};
 
 use my_tcp_sockets::{TcpClient, TcpClientSocketSettings};
-use service_sdk::{my_no_sql_sdk::reader::MyNoSqlDataReaderTcp, ServiceContext};
+use service_sdk::{
+    my_no_sql_sdk::{
+        data_writer::{CreateTableParams, MyNoSqlDataWriter},
+        reader::MyNoSqlDataReaderTcp,
+    },
+    ServiceContext,
+};
 use tokio::sync::Mutex;
 
 use crate::{settings::SettingsReader, your_bourse::YbMarketData};
 
-use super::BroadCastData;
+use super::{BroadCastData, PriceCache};
 
 pub struct AppContext {
-    pub settings: Arc<SettingsReader>,
     pub broadcast_data: Mutex<BroadCastData>,
+    pub bid_ask_price_src: MyNoSqlDataWriter<BidAskPriceSrc>,
     //pub tcp_client: TcpClient,
     pub product_settings: Arc<MyNoSqlDataReaderTcp<ProductSettings>>,
     pub instrument_mapping: Arc<MyNoSqlDataReaderTcp<InstrumentMappingEntity>>,
-
     pub tcp_client: Mutex<Option<TcpClient>>,
+    pub prices_cache: PriceCache,
+    pub lp_id: String,
 }
 
 impl AppContext {
@@ -25,15 +34,27 @@ impl AppContext {
         settings: Arc<SettingsReader>,
         service_content: &ServiceContext,
     ) -> AppContext {
+        let lp_id = settings.get_liquidity_provider_id().await;
+
+        let bid_ask_price_src = MyNoSqlDataWriter::new(
+            settings.clone(),
+            Some(CreateTableParams {
+                persist: false,
+                max_partitions_amount: None,
+                max_rows_per_partition_amount: None,
+            }),
+            service_sdk::my_no_sql_sdk::abstractions::DataSynchronizationPeriod::Sec5,
+        );
         //  let tcp_client = TcpClient::new("yourbourse - fix-client".to_string(), settings.clone());
 
-        let lp_id = settings.get_liquidity_provider_id().await;
         AppContext {
-            settings,
+            lp_id: lp_id.clone(),
             broadcast_data: Mutex::new(BroadCastData::new(lp_id)),
             product_settings: service_content.get_ns_reader().await,
             instrument_mapping: service_content.get_ns_reader().await,
             tcp_client: Mutex::new(None),
+            prices_cache: PriceCache::new(),
+            bid_ask_price_src,
         }
     }
 
@@ -43,17 +64,30 @@ impl AppContext {
 
     pub async fn broad_cast_bid_ask(&self, market_data: YbMarketData) {
         let broadcast_data = self.broadcast_data.lock().await;
-        broadcast_data.broad_cast_bid_ask(market_data).await;
+        if let Some(instruments) = broadcast_data.broad_cast_bid_ask(&market_data).await {
+            let mut to_upload = Vec::with_capacity(instruments.len());
+            for instrument_id in instruments {
+                let price_src = BidAskPriceSrc {
+                    partition_key: self.lp_id.clone(),
+                    row_key: instrument_id.clone(),
+                    src_id: market_data.instrument_id.clone(),
+                    time_stamp: "".to_string(),
+                    bid: market_data.bid,
+                    ask: market_data.ask,
+                    dt: market_data.date.to_rfc3339(),
+                };
+
+                to_upload.push(price_src);
+            }
+
+            self.prices_cache.update(to_upload.into_iter()).await;
+        }
     }
 
     pub async fn get_map(&self) -> HashMap<String, Vec<String>> {
-        let liquidity_provider_id = self.settings.get_liquidity_provider_id().await;
         let map_entity = self
             .instrument_mapping
-            .get_entity(
-                InstrumentMappingEntity::PARTITION_KEY,
-                liquidity_provider_id.as_str(),
-            )
+            .get_entity(InstrumentMappingEntity::PARTITION_KEY, self.lp_id.as_str())
             .await
             .unwrap();
 
@@ -78,14 +112,9 @@ impl AppContext {
 #[async_trait::async_trait]
 impl TcpClientSocketSettings for AppContext {
     async fn get_host_port(&self) -> Option<String> {
-        let liquidity_provider_id = self.settings.get_liquidity_provider_id().await;
-
         let map_entity = self
             .instrument_mapping
-            .get_entity(
-                InstrumentMappingEntity::PARTITION_KEY,
-                liquidity_provider_id.as_str(),
-            )
+            .get_entity(InstrumentMappingEntity::PARTITION_KEY, self.lp_id.as_str())
             .await;
 
         if map_entity.is_none() {
