@@ -44,6 +44,10 @@ pub fn deserialize_market_data(fix_message: &FixMessageReader<'_>) -> Result<YbM
 
     let (bid, ask) = (prices[0], prices[1]);
 
+    if bid < 0.00001 || ask < 0.00001 {
+        return Err(format!("bid:{} or ask:{} less than 0.00001", bid, ask));
+    }
+
     let external_market = fix_message.get_value("55").unwrap().unwrap();
     let date_time = fix_message.get_value("52").unwrap().unwrap();
 
