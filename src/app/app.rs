@@ -24,7 +24,6 @@ pub struct AppContext {
     //pub tcp_client: TcpClient,
     pub product_settings: Arc<MyNoSqlDataReaderTcp<ProductSettings>>,
     pub instrument_mapping: Arc<MyNoSqlDataReaderTcp<InstrumentMappingEntity>>,
-    pub tcp_client: Mutex<Option<TcpClient>>,
     pub prices_cache: PriceCache,
     pub lp_id: String,
 }
@@ -52,7 +51,6 @@ impl AppContext {
             broadcast_data: Mutex::new(BroadCastData::new(lp_id)),
             product_settings: service_content.get_ns_reader().await,
             instrument_mapping: service_content.get_ns_reader().await,
-            tcp_client: Mutex::new(None),
             prices_cache: PriceCache::new(),
             bid_ask_price_src,
         }
