@@ -3,7 +3,9 @@ use service_sdk::my_logger::LogEventCtx;
 
 use super::YbMarketData;
 
-pub fn deserialize_market_data(fix_message: &FixMessageReader<'_>) -> Result<YbMarketData, String> {
+pub fn deserialize_market_data(
+    fix_message: &FixMessageReader<'_>,
+) -> Result<Option<YbMarketData>, String> {
     // there shall be always no_md_entries in the message
     // skip message if it's not exist
     let no_md_entries = fix_message.get_value("268").unwrap();
@@ -26,7 +28,7 @@ pub fn deserialize_market_data(fix_message: &FixMessageReader<'_>) -> Result<YbM
             format!("Can not get md_entries: {}", fix_message.to_string()),
             LogEventCtx::new(),
         );
-        return Err("md_entries less than 2".to_string());
+        return Ok(None);
     }
     let prices = fix_message
         .get_values("270")
@@ -58,7 +60,7 @@ pub fn deserialize_market_data(fix_message: &FixMessageReader<'_>) -> Result<YbM
         ask,
     };
 
-    Ok(result)
+    Ok(Some(result))
     //self.send_to_tcp(market, date_time, bid, ask).await;
 
     /*

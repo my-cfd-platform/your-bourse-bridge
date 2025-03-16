@@ -37,7 +37,10 @@ impl YbFixContract {
             "W" => {
                 let model = super::model_deserializer::deserialize_market_data(&fix_message_reader);
                 match model {
-                    Ok(model) => Self::MarketData(model),
+                    Ok(model) => match model {
+                        Some(model) => Self::MarketData(model),
+                        None => Self::Skip("Skipping market data".to_string()),
+                    },
                     Err(err) => Self::Skip(err),
                 }
             }
