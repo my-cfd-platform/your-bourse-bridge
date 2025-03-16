@@ -25,7 +25,7 @@ pub fn deserialize_market_data(
     if no_md_entries < 2 {
         service_sdk::my_logger::LOGGER.write_error(
             String::from("FixMessageHandler"),
-            format!("Can not get md_entries: {}", fix_message.to_string()),
+            format!("no_md_entries < 2. Msg: {}", fix_message.to_string()),
             LogEventCtx::new(),
         );
         return Ok(None);
