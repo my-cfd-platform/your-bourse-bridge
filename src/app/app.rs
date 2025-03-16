@@ -60,6 +60,7 @@ impl AppContext {
 
     pub async fn get_yb_settings(&self) -> Option<YbPriceFeedSettings> {
         if let Some(settings) = self.settings_reader.get_yb_price_feed().await {
+            println!("Fount YouBourse configuration from settings app");
             return Some(settings);
         }
 
