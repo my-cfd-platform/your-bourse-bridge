@@ -23,9 +23,13 @@ pub fn deserialize_market_data(
     // not sure why buy sometimes there are no prices available in the message,
     // so we skip the message
     if no_md_entries < 2 {
-        service_sdk::my_logger::LOGGER.write_error(
+        service_sdk::my_logger::LOGGER.write_warning(
             String::from("FixMessageHandler"),
-            format!("no_md_entries < 2. Msg: {}", fix_message.to_string()),
+            format!(
+                "no_md_entries value == {} which is < 2. Skipping message. Msg: {}",
+                no_md_entries,
+                fix_message.to_string()
+            ),
             LogEventCtx::new(),
         );
         return Ok(None);
