@@ -4,7 +4,7 @@ use my_nosql_contracts::{
     price_src::BidAskPriceSrc, InstrumentMappingEntity, ProductSettings, YbPriceFeedSettings,
 };
 
-use my_tcp_sockets::{TcpClient, TcpClientSocketSettings};
+use my_tcp_sockets::TcpClientSocketSettings;
 use service_sdk::{
     my_no_sql_sdk::{
         data_writer::{CreateTableParams, MyNoSqlDataWriter},
@@ -25,18 +25,19 @@ pub struct AppContext {
     pub product_settings: Arc<MyNoSqlDataReaderTcp<ProductSettings>>,
     pub instrument_mapping: Arc<MyNoSqlDataReaderTcp<InstrumentMappingEntity>>,
     pub prices_cache: PriceCache,
+    settings_reader: Arc<SettingsReader>,
     pub lp_id: String,
 }
 
 impl AppContext {
     pub async fn new(
-        settings: Arc<SettingsReader>,
+        settings_reader: Arc<SettingsReader>,
         service_content: &ServiceContext,
     ) -> AppContext {
-        let lp_id = settings.get_liquidity_provider_id().await;
+        let lp_id = settings_reader.get_liquidity_provider_id().await;
 
         let bid_ask_price_src = MyNoSqlDataWriter::new(
-            settings.clone(),
+            settings_reader.clone(),
             Some(CreateTableParams {
                 persist: false,
                 max_partitions_amount: None,
@@ -53,10 +54,15 @@ impl AppContext {
             instrument_mapping: service_content.get_ns_reader().await,
             prices_cache: PriceCache::new(),
             bid_ask_price_src,
+            settings_reader,
         }
     }
 
     pub async fn get_yb_settings(&self) -> Option<YbPriceFeedSettings> {
+        if let Some(settings) = self.settings_reader.get_yb_price_feed().await {
+            return Some(settings);
+        }
+
         self.product_settings.get_enum_case_model().await
     }
 
@@ -120,7 +126,7 @@ impl TcpClientSocketSettings for AppContext {
             return None;
         }
 
-        let result: Option<YbPriceFeedSettings> = self.get_yb_settings().await;
+        let result = self.get_yb_settings().await;
 
         if result.is_none() {
             println!(
